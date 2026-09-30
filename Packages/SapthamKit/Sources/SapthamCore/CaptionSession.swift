@@ -4,6 +4,11 @@ import Observation
 /// Joins one audio source to one transcriber and writes the result into a
 /// CaptionFeed. Implements CaptionControlling so a UI can drive it without
 /// knowing which sources or recogniser exist.
+///
+/// Optional collaborators, all injected by the app:
+/// - `transcripts` receives every settled line (for saved transcripts).
+/// - `correctText` rewrites caption text before it is shown (user corrections).
+/// - `makeRecorder` returns a recorder when the user has turned recording on.
 @MainActor
 @Observable
 public final class CaptionSession: CaptionControlling {
@@ -11,9 +16,17 @@ public final class CaptionSession: CaptionControlling {
     public let sources: [CaptionSourceOption]
     public private(set) var activeSourceID: CaptionSourceOption.ID?
 
+    /// A pause in settled speech longer than this starts a new transcript,
+    /// so a day of "Phone calls" becomes one transcript per call.
+    public var conversationGap: TimeInterval = 120
+
     @ObservationIgnored private let makeSource: (CaptionSourceOption.ID) -> AudioSource?
     @ObservationIgnored private let makeTranscriber: () -> SpeechTranscribing
-    @ObservationIgnored private var running: (source: AudioSource, task: Task<Void, Never>)?
+    @ObservationIgnored private let makeRecorder: (CaptionSourceOption.ID) -> AudioRecording?
+    @ObservationIgnored private let correctText: (String) -> String
+    @ObservationIgnored private weak var transcripts: TranscriptSink?
+    @ObservationIgnored private var running: (source: AudioSource, task: Task<Void, Never>, recorder: AudioRecording?)?
+    @ObservationIgnored private var conversation: (id: TranscriptSession.ID, lastLineAt: Date)?
 
     /// - Parameters:
     ///   - sources: the options the UI may offer.
@@ -22,11 +35,17 @@ public final class CaptionSession: CaptionControlling {
     public init(sources: [CaptionSourceOption],
                 feed: CaptionFeed? = nil,
                 makeSource: @escaping (CaptionSourceOption.ID) -> AudioSource?,
-                makeTranscriber: @escaping () -> SpeechTranscribing) {
+                makeTranscriber: @escaping () -> SpeechTranscribing,
+                transcripts: TranscriptSink? = nil,
+                correctText: @escaping (String) -> String = { $0 },
+                makeRecorder: @escaping (CaptionSourceOption.ID) -> AudioRecording? = { _ in nil }) {
         self.sources = sources
         self.feed = feed ?? CaptionFeed()
         self.makeSource = makeSource
         self.makeTranscriber = makeTranscriber
+        self.transcripts = transcripts
+        self.correctText = correctText
+        self.makeRecorder = makeRecorder
     }
 
     public func start(_ sourceID: CaptionSourceOption.ID) {
@@ -38,16 +57,17 @@ public final class CaptionSession: CaptionControlling {
         activeSourceID = sourceID
         feed.setState(.preparing)
         let transcriber = makeTranscriber()
+        let recorder = makeRecorder(sourceID)
         let feed = self.feed
 
         let task = Task { @MainActor [weak self] in
             do {
-                Diagnostics.engine.info("starting source \(sourceID, privacy: .public)")
+                Diagnostics.engine.info("starting source \(sourceID, privacy: .public) (recording \(recorder != nil, privacy: .public))")
                 let audio = try await source.start()
                 Diagnostics.engine.info("source \(sourceID, privacy: .public) started; listening")
                 feed.setState(.listening)
                 let (metered, meterFeed) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(100))
-                // Tee: level meter on the way to the recogniser.
+                // Tee: level meter and recorder on the way to the recogniser.
                 let pump = Task.detached {
                     var lastLevelAt = ContinuousClock.now
                     var peak: Float = 0
@@ -57,6 +77,7 @@ public final class CaptionSession: CaptionControlling {
                             loggedFirstBuffer = true
                             Diagnostics.engine.info("first audio buffer: \(buffer.format.description, privacy: .public)")
                         }
+                        recorder?.write(buffer)
                         peak = max(peak, buffer.peakLevel)
                         if ContinuousClock.now - lastLevelAt > .milliseconds(100) {
                             let level = peak
@@ -71,7 +92,7 @@ public final class CaptionSession: CaptionControlling {
                     meterFeed.finish()
                 }
                 for try await update in transcriber.transcribe(metered) {
-                    feed.apply(update)
+                    self?.handle(update, sourceID: sourceID, recordingFile: recorder?.fileName)
                 }
                 pump.cancel()
                 if !Task.isCancelled { feed.setState(.idle) }
@@ -83,7 +104,7 @@ public final class CaptionSession: CaptionControlling {
             }
             if !Task.isCancelled { self?.finished(sourceID) }
         }
-        running = (source, task)
+        running = (source, task, recorder)
     }
 
     public func stop() {
@@ -91,6 +112,8 @@ public final class CaptionSession: CaptionControlling {
         self.running = nil
         running.source.stop()
         running.task.cancel()
+        running.recorder?.finish()
+        endConversation()
         activeSourceID = nil
         feed.setState(.idle)
     }
@@ -99,9 +122,44 @@ public final class CaptionSession: CaptionControlling {
         feed.clear()
     }
 
+    private func handle(_ update: TranscriptUpdate, sourceID: CaptionSourceOption.ID, recordingFile: String?) {
+        switch update {
+        case .volatile(let text):
+            feed.apply(.volatile(correctText(text)))
+        case .final(let text, let audio):
+            feed.apply(.final(correctText(text), audio: audio))
+            record(text, audio: audio, sourceID: sourceID, recordingFile: recordingFile)
+        }
+    }
+
+    /// Saves the recogniser's own words; corrections are applied on display,
+    /// so later rules also fix old transcripts.
+    private func record(_ heard: String, audio: AudioSpan?, sourceID: CaptionSourceOption.ID, recordingFile: String?) {
+        guard let transcripts, !heard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let now = Date()
+        if let current = conversation, now.timeIntervalSince(current.lastLineAt) > conversationGap {
+            transcripts.endSession(current.id, at: current.lastLineAt)
+            conversation = nil
+        }
+        let id = conversation?.id ?? transcripts.beginSession(
+            sourceID: sourceID,
+            sourceTitle: sources.first { $0.id == sourceID }?.title ?? sourceID,
+            recordingFile: recordingFile,
+            at: now)
+        transcripts.appendLine(heard, audio: audio, at: now, to: id)
+        conversation = (id, now)
+    }
+
+    private func endConversation() {
+        if let current = conversation { transcripts?.endSession(current.id, at: current.lastLineAt) }
+        conversation = nil
+    }
+
     private func finished(_ sourceID: CaptionSourceOption.ID) {
         guard activeSourceID == sourceID else { return }
+        running?.recorder?.finish()
         running = nil
+        endConversation()
         activeSourceID = nil
     }
 }

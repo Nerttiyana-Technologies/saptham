@@ -21,8 +21,20 @@ public protocol SpeechTranscribing: AnyObject {
 public enum TranscriptUpdate: Equatable, Sendable {
     /// Provisional words for the sentence in progress; replaced by the next update.
     case volatile(String)
-    /// A settled sentence.
-    case final(String)
+    /// A settled sentence, with where it lies in the audio stream when known.
+    case final(String, audio: AudioSpan? = nil)
+}
+
+/// A stretch of audio, in seconds from the first sample the recogniser was
+/// given. A recording of the same stream uses the same clock.
+public struct AudioSpan: Codable, Equatable, Sendable {
+    public var start: Double
+    public var end: Double
+
+    public init(start: Double, end: Double) {
+        self.start = start
+        self.end = end
+    }
 }
 
 /// A choice the user can make about what to caption. The app defines the

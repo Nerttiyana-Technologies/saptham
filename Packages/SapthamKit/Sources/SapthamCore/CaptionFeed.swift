@@ -48,7 +48,7 @@ public final class CaptionFeed {
         switch update {
         case .volatile(let text):
             partial = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .final(let text):
+        case .final(let text, _):
             partial = ""
             let settled = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !settled.isEmpty else { return }

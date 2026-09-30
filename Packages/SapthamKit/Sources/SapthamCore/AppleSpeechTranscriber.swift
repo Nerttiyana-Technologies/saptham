@@ -131,7 +131,14 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
                     latency.resultArrived(coveringAudioUpTo: lastWordEnd)
                 }
                 let plain = String(text.characters)
-                emit(isFinal ? .final(plain) : .volatile(plain))
+                if isFinal {
+                    let ranges = text.runs.compactMap(\.audioTimeRange)
+                    let span = ranges.isEmpty ? nil : AudioSpan(start: ranges.map(\.start.seconds).min()!,
+                                                                end: ranges.map(\.end.seconds).max()!)
+                    emit(.final(plain, audio: span))
+                } else {
+                    emit(.volatile(plain))
+                }
             }
         }
 

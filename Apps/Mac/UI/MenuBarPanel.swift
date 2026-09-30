@@ -7,6 +7,8 @@ struct MenuBarPanel: View {
     let captionWindow: CaptionWindowController
     @Binding var isCaptionWindowVisible: Bool
     @AppStorage("captionTextSize") private var textSize = 30.0
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @AppStorage("lastCaptionSourceID") private var lastSourceID = ""
 
     var body: some View {
@@ -67,6 +69,23 @@ struct MenuBarPanel: View {
                 }
                 .disabled(controller.activeSourceID == nil)
                 .accessibilityLabel("Stop captioning")
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Button("Review transcripts…", systemImage: "text.alignleft") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "transcripts")
+                }
+                Button("Corrections…", systemImage: "text.badge.checkmark") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "corrections")
+                }
+                Button("Settings…", systemImage: "gearshape") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openSettings()
+                }
             }
 
             Divider()

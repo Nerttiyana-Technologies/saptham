@@ -9,6 +9,8 @@ public final class AudioFormatConverter {
         guard let converter = AVAudioConverter(from: source, to: target) else {
             throw SapthamError("Cannot convert audio from \(source) to \(target).")
         }
+        // Mix all channels into mono rather than keeping only the first.
+        converter.downmix = true
         self.converter = converter
         self.target = target
     }
