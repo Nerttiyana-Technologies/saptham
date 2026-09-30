@@ -39,6 +39,9 @@ public final class CaptionFeed {
     /// True while audio is arriving (for call audio: a call is playing).
     /// Turns false about `silenceAfter` after the last buffer.
     public private(set) var isReceivingAudio = false
+    /// True while the captured sound is playing but mostly missing (see
+    /// BrokenAudioDetector); captions cannot work until that changes.
+    public private(set) var isAudioBrokenUp = false
 
     @ObservationIgnored private var silenceTimer: Task<Void, Never>?
     private static let silenceAfter: Duration = .milliseconds(1_500)
@@ -68,7 +71,14 @@ public final class CaptionFeed {
 
     public func setState(_ state: CaptionState) {
         self.state = state
-        if state != .listening { markSilent() }
+        if state != .listening {
+            markSilent()
+            isAudioBrokenUp = false
+        }
+    }
+
+    public func setAudioBrokenUp(_ brokenUp: Bool) {
+        isAudioBrokenUp = brokenUp
     }
 
     /// Called for each burst of captured audio. Silence is detected both by

@@ -60,20 +60,19 @@ public final class ProcessTapSource: AudioSource {
             throw SapthamError("The audio tap reported an unusable format.")
         }
 
-        let outputDevice: AudioObjectID = try CoreAudioProperty.scalar(
-            AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultSystemOutputDevice)
-        let outputUID = try CoreAudioProperty.string(outputDevice, kAudioDevicePropertyDeviceUID)
+        let clockUID = try AudioClockDevice.uid(forSampleRate: format.sampleRate)
 
         // A private aggregate device is the only way to read a tap: the tap
-        // becomes its input stream, clocked by the real output device.
+        // becomes its input stream, clocked by `clockUID`. Nothing is played
+        // through that device; it only paces the reads.
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Saptham captions",
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
-            kAudioAggregateDeviceMainSubDeviceKey: outputUID,
+            kAudioAggregateDeviceMainSubDeviceKey: clockUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
             kAudioAggregateDeviceTapAutoStartKey: true,
-            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outputUID]],
+            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: clockUID]],
             kAudioAggregateDeviceTapListKey: [[
                 kAudioSubTapDriftCompensationKey: true,
                 kAudioSubTapUIDKey: description.uuid.uuidString,
@@ -82,6 +81,12 @@ public final class ProcessTapSource: AudioSource {
         do {
             try Self.check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID),
                            "create the capture device")
+            // Buffers are read as `format`; at any other rate speech is
+            // silently sped up or slowed down (see AudioClockDevice).
+            let captureRate: Float64 = try CoreAudioProperty.scalar(aggregateID, kAudioDevicePropertyNominalSampleRate)
+            guard captureRate == format.sampleRate else {
+                throw SapthamError("The capture device runs at \(Int(captureRate)) Hz instead of \(Int(format.sampleRate)) Hz.")
+            }
 
             let (stream, continuation) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(100))
             self.continuation = continuation

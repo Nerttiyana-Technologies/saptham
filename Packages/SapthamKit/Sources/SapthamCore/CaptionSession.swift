@@ -89,10 +89,17 @@ public final class CaptionSession: CaptionControlling {
                     var lastLevelAt = ContinuousClock.now
                     var peak: Float = 0
                     var loggedFirstBuffer = false
+                    var brokenAudio = BrokenAudioDetector()
                     for await buffer in audio {
                         if !loggedFirstBuffer {
                             loggedFirstBuffer = true
                             Diagnostics.engine.info("first audio buffer: \(buffer.format.description, privacy: .public)")
+                        }
+                        if let samples = buffer.floatChannelData?[0],
+                           let brokenUp = brokenAudio.add(UnsafeBufferPointer(start: samples, count: Int(buffer.frameLength)),
+                                                          sampleRate: buffer.format.sampleRate) {
+                            Diagnostics.engine.info("captured audio broken up: \(brokenUp, privacy: .public)")
+                            Task { @MainActor in feed.setAudioBrokenUp(brokenUp) }
                         }
                         recorder?.write(buffer)
                         peak = max(peak, buffer.peakLevel)

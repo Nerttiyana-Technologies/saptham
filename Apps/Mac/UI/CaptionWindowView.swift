@@ -33,6 +33,11 @@ struct CaptionWindowView: View {
                 }
                 .padding(.bottom, 12)
 
+                if controller.feed.isAudioBrokenUp {
+                    brokenAudioNotice
+                        .padding(.bottom, 10)
+                }
+
                 captionScrollView
             }
             .padding(22)
@@ -150,6 +155,21 @@ struct CaptionWindowView: View {
         Button(title) { textSize = value }
             .accessibilityLabel("Set caption text size to \(title.lowercased())")
             .accessibilityAddTraits(textSize == value ? .isSelected : [])
+    }
+
+    /// Shown while sound is playing but reaches Saptham mostly missing.
+    /// Measured 2026-09-30: Safari playing video to Bluetooth hearing
+    /// devices does this; other browsers on the same devices do not.
+    private var brokenAudioNotice: some View {
+        Label {
+            Text("The sound is reaching Saptham broken up, so it cannot be captioned. If Safari is playing to Bluetooth hearing aids or headphones, play it in another browser such as Edge or Chrome, or through the Mac's speakers.")
+                .font(.system(size: 14, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var windowStatus: String {
