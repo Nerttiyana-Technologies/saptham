@@ -26,6 +26,9 @@ public struct TranscriptSession: Identifiable, Codable, Equatable, Sendable {
     public let id: UUID
     public let sourceID: String
     public let sourceTitle: String
+    /// The caption language (`CaptionLanguageOption.id`); nil in sessions
+    /// saved before Tamil captions existed, which were all English.
+    public let languageID: String?
     public let startedAt: Date
     public var endedAt: Date?
     public var lines: [TranscriptLine]
@@ -34,11 +37,12 @@ public struct TranscriptSession: Identifiable, Codable, Equatable, Sendable {
     /// are positions within it.
     public var recordingFile: String?
 
-    public init(id: UUID = UUID(), sourceID: String, sourceTitle: String, startedAt: Date,
+    public init(id: UUID = UUID(), sourceID: String, sourceTitle: String, languageID: String? = nil, startedAt: Date,
                 endedAt: Date? = nil, lines: [TranscriptLine] = [], recordingFile: String? = nil) {
         self.id = id
         self.sourceID = sourceID
         self.sourceTitle = sourceTitle
+        self.languageID = languageID
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.lines = lines
@@ -50,7 +54,7 @@ public struct TranscriptSession: Identifiable, Codable, Equatable, Sendable {
 /// on TranscriptLibrary, so storage can change without touching the engine.
 @MainActor
 public protocol TranscriptSink: AnyObject {
-    func beginSession(sourceID: String, sourceTitle: String, recordingFile: String?, at time: Date) -> TranscriptSession.ID
+    func beginSession(sourceID: String, sourceTitle: String, languageID: String?, recordingFile: String?, at time: Date) -> TranscriptSession.ID
     func appendLine(_ heard: String, audio: AudioSpan?, at time: Date, to session: TranscriptSession.ID)
     func endSession(_ session: TranscriptSession.ID, at time: Date)
 }
@@ -82,8 +86,9 @@ public final class TranscriptLibrary: TranscriptSink {
 
     // MARK: TranscriptSink
 
-    public func beginSession(sourceID: String, sourceTitle: String, recordingFile: String?, at time: Date) -> TranscriptSession.ID {
-        let session = TranscriptSession(sourceID: sourceID, sourceTitle: sourceTitle, startedAt: time, recordingFile: recordingFile)
+    public func beginSession(sourceID: String, sourceTitle: String, languageID: String?, recordingFile: String?, at time: Date) -> TranscriptSession.ID {
+        let session = TranscriptSession(sourceID: sourceID, sourceTitle: sourceTitle, languageID: languageID,
+                                        startedAt: time, recordingFile: recordingFile)
         sessions.insert(session, at: 0)
         save(session)
         return session.id

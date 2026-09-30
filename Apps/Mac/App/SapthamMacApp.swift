@@ -27,8 +27,12 @@ struct SapthamMacApp: App {
             UserDefaults.standard.set(true, forKey: "captionWindowVisible")
         }
 
-        // Diagnostics: `--start <source id>` begins captioning at launch.
+        // Diagnostics: `--language <id>` switches the caption language and
+        // `--start <source id>` begins captioning at launch.
         let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "--language"), index + 1 < arguments.count {
+            engine.setLanguage(arguments[index + 1])
+        }
         if let index = arguments.firstIndex(of: "--start"), index + 1 < arguments.count {
             engine.start(arguments[index + 1])
         }
@@ -38,7 +42,7 @@ struct SapthamMacApp: App {
             ("Transcripts", CGSize(width: 1000, height: 640),
              AnyView(TranscriptReviewView(transcripts: services.transcripts, corrections: services.corrections))),
             ("Corrections", CGSize(width: 700, height: 420), AnyView(CorrectionsView(corrections: services.corrections))),
-            ("Settings", CGSize(width: 560, height: 360), AnyView(SapthamSettingsView(transcripts: services.transcripts))),
+            ("Settings", CGSize(width: 560, height: 560), AnyView(SapthamSettingsView(transcripts: services.transcripts))),
             ("MenuBarPanel", CGSize(width: 360, height: 760),
              AnyView(MenuBarPanel(controller: services.captions, captionWindow: panel, isCaptionWindowVisible: .constant(true)))),
         ])

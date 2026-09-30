@@ -32,8 +32,10 @@ public struct TextCorrector: Sendable {
             .compactMap { rule in
                 let words = rule.heard.split(whereSeparator: \.isWhitespace).map { NSRegularExpression.escapedPattern(for: String($0)) }
                 let body = words.joined(separator: "\\s+")
+                // Marks count as part of a word: Tamil vowel signs and the
+                // virama (்) are marks, and "கட" must not match inside "கடை".
                 guard let pattern = try? NSRegularExpression(
-                    pattern: "(?<![\\p{L}\\p{N}])\(body)(?![\\p{L}\\p{N}])",
+                    pattern: "(?<![\\p{L}\\p{M}\\p{N}])\(body)(?![\\p{L}\\p{M}\\p{N}])",
                     options: [.caseInsensitive]) else { return nil }
                 return (pattern, rule.replacement)
             }

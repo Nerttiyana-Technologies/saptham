@@ -18,6 +18,13 @@ struct TextCorrectorTests {
         #expect(fix.apply(to: "The category of cat.") == "The category of dog.")
     }
 
+    @Test func treatsTamilVowelSignsAsPartOfTheWord() {
+        let fix = corrector([("கட", "கடல்"), ("சென்னை", "Chennai")])
+        #expect(fix.apply(to: "கடை திறந்திருக்கு") == "கடை திறந்திருக்கு")
+        #expect(fix.apply(to: "கட பக்கத்துல") == "கடல் பக்கத்துல")
+        #expect(fix.apply(to: "சென்னைக்கு போறேன், சென்னை.") == "சென்னைக்கு போறேன், Chennai.")
+    }
+
     @Test func matchesPhrasesAcrossExtraSpaces() {
         let fix = corrector([("butt theories", "batteries")])
         #expect(fix.apply(to: "Bring the spare butt  theories, please.") == "Bring the spare batteries, please.")
@@ -71,7 +78,7 @@ struct TranscriptLibraryTests {
         defer { try? FileManager.default.removeItem(at: transcripts.deletingLastPathComponent()) }
 
         let library = TranscriptLibrary(transcriptsFolder: transcripts, recordingsFolder: recordings)
-        let id = library.beginSession(sourceID: "calls", sourceTitle: "Phone calls", recordingFile: nil, at: Date())
+        let id = library.beginSession(sourceID: "calls", sourceTitle: "Phone calls", languageID: "en", recordingFile: nil, at: Date())
         library.appendLine("Sabtham works", audio: AudioSpan(start: 1, end: 2), at: Date(), to: id)
         library.endSession(id, at: Date())
 
@@ -93,10 +100,10 @@ struct TranscriptLibraryTests {
         try Data([1, 2, 3]).write(to: audio)
 
         let library = TranscriptLibrary(transcriptsFolder: transcripts, recordingsFolder: recordings)
-        let old = library.beginSession(sourceID: "calls", sourceTitle: "Phone calls", recordingFile: "call.m4a",
+        let old = library.beginSession(sourceID: "calls", sourceTitle: "Phone calls", languageID: "en", recordingFile: "call.m4a",
                                        at: Date(timeIntervalSinceNow: -40 * 86_400))
         library.endSession(old, at: Date(timeIntervalSinceNow: -40 * 86_400))
-        let recent = library.beginSession(sourceID: "calls", sourceTitle: "Phone calls", recordingFile: "call.m4a", at: Date())
+        let recent = library.beginSession(sourceID: "calls", sourceTitle: "Phone calls", languageID: "en", recordingFile: "call.m4a", at: Date())
 
         #expect(library.deleteSessions(endedBefore: Date(timeIntervalSinceNow: -30 * 86_400)) == 1)
         #expect(FileManager.default.fileExists(atPath: audio.path))   // still used by `recent`
@@ -131,8 +138,9 @@ struct CaptionSessionTranscriptTests {
         let fix = TextCorrector(rules: [CorrectionRule(heard: "caffeine", replacement: "captioning")])
         let session = CaptionSession(
             sources: [CaptionSourceOption(id: "calls", title: "Phone calls", detail: "", systemImage: "phone")],
+            languages: [CaptionLanguageOption(id: "en", title: "English", nativeTitle: "English")],
             makeSource: { _ in SilentSource() },
-            makeTranscriber: { ScriptedTranscriber([.volatile("live caffeine"), .final("Live caffeine works.")]) },
+            makeTranscriber: { _ in ScriptedTranscriber([.volatile("live caffeine"), .final("Live caffeine works.")]) },
             transcripts: library,
             correctText: fix.apply(to:))
 
@@ -142,6 +150,33 @@ struct CaptionSessionTranscriptTests {
         #expect(session.feed.lines.map(\.text) == ["Live captioning works."])
         #expect(library.sessions.first?.lines.map(\.heard) == ["Live caffeine works."])
         #expect(library.sessions.first?.endedAt != nil)
+    }
+
+    @Test func captionsInTheChosenLanguageAndSavesIt() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("saptham-tests-\(UUID())")
+        let library = TranscriptLibrary(transcriptsFolder: folder.appendingPathComponent("T"),
+                                        recordingsFolder: folder.appendingPathComponent("R"))
+        var saved: [String] = []
+        let session = CaptionSession(
+            sources: [CaptionSourceOption(id: "mic", title: "Conversation", detail: "", systemImage: "mic")],
+            languages: [CaptionLanguageOption(id: "en", title: "English", nativeTitle: "English"),
+                        CaptionLanguageOption(id: "ta", title: "Tamil", nativeTitle: "தமிழ்")],
+            languageID: "unknown",
+            makeSource: { _ in SilentSource() },
+            makeTranscriber: { language in ScriptedTranscriber([.final(language == "ta" ? "வணக்கம்" : "Hello")]) },
+            languageChanged: { saved.append($0) },
+            transcripts: library)
+
+        #expect(session.activeLanguageID == "en")
+        session.setLanguage("ta")
+        session.setLanguage("fr")   // not offered: ignored
+        #expect(session.activeLanguageID == "ta")
+        #expect(saved == ["ta"])
+
+        session.start("mic")
+        for _ in 0..<50 where session.activeSourceID != nil { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(session.feed.lines.map(\.text) == ["வணக்கம்"])
+        #expect(library.sessions.first?.languageID == "ta")
     }
 }
 

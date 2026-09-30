@@ -53,6 +53,22 @@ public struct CaptionSourceOption: Identifiable, Hashable, Sendable {
     }
 }
 
+/// A language the user can caption in. The app defines the list; the UI only
+/// displays and selects them.
+public struct CaptionLanguageOption: Identifiable, Hashable, Sendable {
+    public let id: String
+    /// In English, e.g. "Tamil".
+    public let title: String
+    /// In the language itself, e.g. "தமிழ்".
+    public let nativeTitle: String
+
+    public init(id: String, title: String, nativeTitle: String) {
+        self.id = id
+        self.title = title
+        self.nativeTitle = nativeTitle
+    }
+}
+
 /// Everything the UI may ask of the engine.
 @MainActor
 public protocol CaptionControlling: AnyObject, Observable {
@@ -60,8 +76,13 @@ public protocol CaptionControlling: AnyObject, Observable {
     var sources: [CaptionSourceOption] { get }
     /// The source being captioned, or nil when stopped.
     var activeSourceID: CaptionSourceOption.ID? { get }
+    var languages: [CaptionLanguageOption] { get }
+    var activeLanguageID: CaptionLanguageOption.ID { get }
     func start(_ sourceID: CaptionSourceOption.ID)
     func stop()
+    /// Captions from now on are in this language. A source that is running
+    /// restarts with the new recogniser, which ends its current transcript.
+    func setLanguage(_ languageID: CaptionLanguageOption.ID)
     /// Removes every caption line from the screen (nothing is stored elsewhere).
     func clear()
 }

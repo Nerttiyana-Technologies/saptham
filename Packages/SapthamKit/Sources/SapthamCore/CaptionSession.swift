@@ -15,13 +15,16 @@ public final class CaptionSession: CaptionControlling {
     public let feed: CaptionFeed
     public let sources: [CaptionSourceOption]
     public private(set) var activeSourceID: CaptionSourceOption.ID?
+    public let languages: [CaptionLanguageOption]
+    public private(set) var activeLanguageID: CaptionLanguageOption.ID
 
     /// A pause in settled speech longer than this starts a new transcript,
     /// so a day of "Phone calls" becomes one transcript per call.
     public var conversationGap: TimeInterval = 120
 
     @ObservationIgnored private let makeSource: (CaptionSourceOption.ID) -> AudioSource?
-    @ObservationIgnored private let makeTranscriber: () -> SpeechTranscribing
+    @ObservationIgnored private let makeTranscriber: (CaptionLanguageOption.ID) -> SpeechTranscribing
+    @ObservationIgnored private let languageChanged: (CaptionLanguageOption.ID) -> Void
     @ObservationIgnored private let makeRecorder: (CaptionSourceOption.ID) -> AudioRecording?
     @ObservationIgnored private let correctText: (String) -> String
     @ObservationIgnored private weak var transcripts: TranscriptSink?
@@ -31,15 +34,25 @@ public final class CaptionSession: CaptionControlling {
     /// - Parameters:
     ///   - sources: the options the UI may offer.
     ///   - makeSource: builds the audio source for an option id.
-    ///   - makeTranscriber: builds a fresh recogniser for each run.
+    ///   - languages: the caption languages the UI may offer; the first is
+    ///     used when `languageID` is not one of them.
+    ///   - makeTranscriber: builds a fresh recogniser for a language, for each run.
+    ///   - languageChanged: told when the user picks another language (to save it).
     public init(sources: [CaptionSourceOption],
+                languages: [CaptionLanguageOption],
+                languageID: CaptionLanguageOption.ID? = nil,
                 feed: CaptionFeed? = nil,
                 makeSource: @escaping (CaptionSourceOption.ID) -> AudioSource?,
-                makeTranscriber: @escaping () -> SpeechTranscribing,
+                makeTranscriber: @escaping (CaptionLanguageOption.ID) -> SpeechTranscribing,
+                languageChanged: @escaping (CaptionLanguageOption.ID) -> Void = { _ in },
                 transcripts: TranscriptSink? = nil,
                 correctText: @escaping (String) -> String = { $0 },
                 makeRecorder: @escaping (CaptionSourceOption.ID) -> AudioRecording? = { _ in nil }) {
+        precondition(!languages.isEmpty, "CaptionSession needs at least one language")
         self.sources = sources
+        self.languages = languages
+        self.activeLanguageID = languages.first { $0.id == languageID }?.id ?? languages[0].id
+        self.languageChanged = languageChanged
         self.feed = feed ?? CaptionFeed()
         self.makeSource = makeSource
         self.makeTranscriber = makeTranscriber
@@ -56,7 +69,8 @@ public final class CaptionSession: CaptionControlling {
         }
         activeSourceID = sourceID
         feed.setState(.preparing)
-        let transcriber = makeTranscriber()
+        let transcriber = makeTranscriber(activeLanguageID)
+        let languageID = activeLanguageID
         let recorder = makeRecorder(sourceID)
         let feed = self.feed
 
@@ -92,7 +106,7 @@ public final class CaptionSession: CaptionControlling {
                     meterFeed.finish()
                 }
                 for try await update in transcriber.transcribe(metered) {
-                    self?.handle(update, sourceID: sourceID, recordingFile: recorder?.fileName)
+                    self?.handle(update, sourceID: sourceID, languageID: languageID, recordingFile: recorder?.fileName)
                 }
                 pump.cancel()
                 if !Task.isCancelled { feed.setState(.idle) }
@@ -122,19 +136,28 @@ public final class CaptionSession: CaptionControlling {
         feed.clear()
     }
 
-    private func handle(_ update: TranscriptUpdate, sourceID: CaptionSourceOption.ID, recordingFile: String?) {
+    public func setLanguage(_ languageID: CaptionLanguageOption.ID) {
+        guard languageID != activeLanguageID, languages.contains(where: { $0.id == languageID }) else { return }
+        activeLanguageID = languageID
+        languageChanged(languageID)
+        if let sourceID = activeSourceID { start(sourceID) }
+    }
+
+    private func handle(_ update: TranscriptUpdate, sourceID: CaptionSourceOption.ID,
+                        languageID: CaptionLanguageOption.ID, recordingFile: String?) {
         switch update {
         case .volatile(let text):
             feed.apply(.volatile(correctText(text)))
         case .final(let text, let audio):
             feed.apply(.final(correctText(text), audio: audio))
-            record(text, audio: audio, sourceID: sourceID, recordingFile: recordingFile)
+            record(text, audio: audio, sourceID: sourceID, languageID: languageID, recordingFile: recordingFile)
         }
     }
 
     /// Saves the recogniser's own words; corrections are applied on display,
     /// so later rules also fix old transcripts.
-    private func record(_ heard: String, audio: AudioSpan?, sourceID: CaptionSourceOption.ID, recordingFile: String?) {
+    private func record(_ heard: String, audio: AudioSpan?, sourceID: CaptionSourceOption.ID,
+                        languageID: CaptionLanguageOption.ID, recordingFile: String?) {
         guard let transcripts, !heard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let now = Date()
         if let current = conversation, now.timeIntervalSince(current.lastLineAt) > conversationGap {
@@ -144,6 +167,7 @@ public final class CaptionSession: CaptionControlling {
         let id = conversation?.id ?? transcripts.beginSession(
             sourceID: sourceID,
             sourceTitle: sources.first { $0.id == sourceID }?.title ?? sourceID,
+            languageID: languageID,
             recordingFile: recordingFile,
             at: now)
         transcripts.appendLine(heard, audio: audio, at: now, to: id)

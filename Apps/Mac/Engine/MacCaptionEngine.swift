@@ -21,6 +21,11 @@ enum MacCaptionEngine {
         static let everything = "system"
     }
 
+    enum LanguageID {
+        static let english = "en"
+        static let tamil = "ta"
+    }
+
     /// ~/Library/Application Support/Saptham — outside any repository, on
     /// this Mac only (protected at rest by FileVault).
     static let dataFolder = FileManager.default
@@ -46,6 +51,11 @@ enum MacCaptionEngine {
                                     detail: "Meetings, videos and any app's sound",
                                     systemImage: "speaker.wave.2.fill"),
             ],
+            languages: [
+                CaptionLanguageOption(id: LanguageID.english, title: "English", nativeTitle: "English"),
+                CaptionLanguageOption(id: LanguageID.tamil, title: "Tamil", nativeTitle: "தமிழ்"),
+            ],
+            languageID: SapthamSettings.captionLanguageValue,
             makeSource: { id in
                 switch id {
                 case SourceID.calls:
@@ -58,7 +68,15 @@ enum MacCaptionEngine {
                     nil
                 }
             },
-            makeTranscriber: { AppleSpeechTranscriber() },   // English (India), on device
+            makeTranscriber: { language in
+                switch language {
+                case LanguageID.tamil:
+                    WindowedCTCTranscriber { try loadTamilModel() }
+                default:
+                    AppleSpeechTranscriber()   // English (India)
+                }
+            },
+            languageChanged: { UserDefaults.standard.set($0, forKey: SapthamSettings.captionLanguage) },
             transcripts: transcripts,
             correctText: { corrections.apply(to: $0) },
             makeRecorder: { id in
@@ -69,6 +87,16 @@ enum MacCaptionEngine {
                                          fileName: "call-\(fileStamp.string(from: Date())).m4a")
             })
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections)
+    }
+
+    /// AI4Bharat's IndicConformer, converted by Tools/ModelBuild and bundled
+    /// by the Xcode project. Runs on this Mac's GPU; nothing leaves the device.
+    nonisolated static func loadTamilModel() throws -> CTCWindowModel {
+        guard let model = Bundle.main.url(forResource: "TamilSpeech", withExtension: "mlmodelc"),
+              let description = Bundle.main.url(forResource: "TamilSpeech", withExtension: "json") else {
+            throw SapthamError("Tamil captions are not included in this copy of Saptham.")
+        }
+        return try CoreMLCTCModel(compiledModel: model, description: description)
     }
 
     /// Applies the "keep transcripts for" setting.
@@ -113,7 +141,8 @@ extension MacCaptionEngine {
         ]
         for call in calls {
             let start = Date(timeIntervalSinceNow: -call.minutesAgo * 60)
-            let id = transcripts.beginSession(sourceID: SourceID.calls, sourceTitle: "Phone calls", recordingFile: nil, at: start)
+            let id = transcripts.beginSession(sourceID: SourceID.calls, sourceTitle: "Phone calls", languageID: LanguageID.english,
+                                              recordingFile: nil, at: start)
             for (index, line) in call.lines.enumerated() {
                 transcripts.appendLine(line, audio: AudioSpan(start: Double(index) * 5, end: Double(index) * 5 + 4),
                                        at: start.addingTimeInterval(Double(index) * 6), to: id)

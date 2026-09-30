@@ -69,3 +69,5 @@ Spikes/*/build/
 Saptham.xcodeproj/
 # Local build output
 /build/
+# Speech models built by Tools/ModelBuild (hundreds of MB; rebuilt, never committed)
+/Models/

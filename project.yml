@@ -25,6 +25,14 @@ targets:
       - path: Apps/Mac
         excludes:
           - "Support/Info.plist"
+      # Tamil speech model from Tools/ModelBuild (git-ignored). Optional so
+      # the app still builds without it; Tamil then reports itself missing.
+      # Its licence notice is in Support/ThirdPartyNotices.txt, which ships.
+      - path: Models/TamilSpeech.mlpackage
+        optional: true
+      - path: Models/TamilSpeech.json
+        optional: true
+        buildPhase: resources
     dependencies:
       - package: SapthamKit
         product: SapthamCore
@@ -37,6 +45,8 @@ targets:
         INFOPLIST_FILE: Apps/Mac/Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Apps/Mac/Support/Saptham.entitlements
         ENABLE_HARDENED_RUNTIME: YES
+        # The app loads the Tamil model by name; no generated Swift class.
+        COREML_CODEGEN_LANGUAGE: None
         # Only a Developer ID certificate exists on the build Mac. A stable
         # identity also keeps macOS permission grants across rebuilds.
         CODE_SIGN_STYLE: Manual

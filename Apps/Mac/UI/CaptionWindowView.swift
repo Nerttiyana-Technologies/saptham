@@ -26,6 +26,8 @@ struct CaptionWindowView: View {
                     Text(windowStatus)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
+                    // Always visible: the speaker's language can change mid-call.
+                    CaptionLanguagePicker(controller: controller, style: .compact)
                     Spacer(minLength: 8)
                     controls
                 }

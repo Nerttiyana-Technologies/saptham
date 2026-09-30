@@ -24,6 +24,14 @@ struct MenuBarPanel: View {
             statusSection
 
             VStack(alignment: .leading, spacing: 8) {
+                Text("LANGUAGE")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isHeader)
+                CaptionLanguagePicker(controller: controller)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 Text("CAPTION SOURCE")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)

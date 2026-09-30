@@ -8,6 +8,7 @@ struct SapthamSettingsView: View {
     @AppStorage(SapthamSettings.autoCaptionCalls) private var autoCaptionCalls = SapthamSettings.autoCaptionCallsDefault
     @AppStorage(SapthamSettings.keepDays) private var keepDays = SapthamSettings.keepDaysDefault
     @State private var confirmsDeleteAll = false
+    @State private var showsNotices = false
 
     var body: some View {
         Form {
@@ -42,8 +43,14 @@ struct SapthamSettingsView: View {
                     NSWorkspace.shared.activateFileViewerSelecting([folder])
                 }
             }
+            Section("About") {
+                Button("Third-party notices…", systemImage: "doc.text") { showsNotices = true }
+                Text("Tamil captions use AI4Bhārat's IndicConformer speech model, running on this Mac.")
+                    .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showsNotices) { ThirdPartyNoticesView() }
         // Drop the form's opaque page so the glass shows between the
         // grouped sections; each section keeps its own readable card.
         .scrollContentBackground(.hidden)
@@ -61,6 +68,31 @@ struct SapthamSettingsView: View {
         case 365: "1 year"
         default: "Forever"
         }
+    }
+}
+
+/// The generated Support/ThirdPartyNotices.txt, as shipped in the app.
+private struct ThirdPartyNoticesView: View {
+    @Environment(\.dismiss) private var dismiss
+    private let text: String = Bundle.main.url(forResource: "ThirdPartyNotices", withExtension: "txt")
+        .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        ?? "The notices file is missing from this copy of Saptham."
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            ScrollView {
+                Text(text)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+            Button("Done") { dismiss() }
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding()
+        .frame(width: 620, height: 520)
     }
 }
 
