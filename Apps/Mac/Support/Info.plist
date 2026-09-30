@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Saptham</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<!-- Menu-bar app: no Dock icon. -->
+	<key>LSUIElement</key>
+	<true/>
+	<!-- Must be written here, not as an INFOPLIST_KEY_ build setting, which drops it. -->
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Saptham listens to calls and to the sound your apps play so it can show the words as captions. Nothing leaves this Mac.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Saptham listens to people talking near you so it can show their words as captions. Nothing leaves this Mac.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Saptham turns speech into captions on this Mac. Nothing is sent anywhere.</string>
+</dict>
+</plist>

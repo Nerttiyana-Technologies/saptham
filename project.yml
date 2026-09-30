@@ -1,0 +1,48 @@
+# XcodeGen spec (XcodeGen is MIT-licensed and build-time only; nothing from
+# it ships in the app). Regenerate with:  xcodegen generate
+name: Saptham
+options:
+  bundleIdPrefix: com.nerttiyana.saptham
+  deploymentTarget:
+    macOS: "27.0"
+    iOS: "27.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: 8MPY5FTFAK
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  SapthamKit:
+    path: Packages/SapthamKit
+targets:
+  SapthamMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Apps/Mac
+        excludes:
+          - "Support/Info.plist"
+    dependencies:
+      - package: SapthamKit
+        product: SapthamCore
+      - package: SapthamKit
+        product: SapthamMacAudio
+    settings:
+      base:
+        PRODUCT_NAME: Saptham
+        PRODUCT_BUNDLE_IDENTIFIER: com.nerttiyana.saptham.mac
+        INFOPLIST_FILE: Apps/Mac/Support/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Apps/Mac/Support/Saptham.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        # Only a Developer ID certificate exists on the build Mac. A stable
+        # identity also keeps macOS permission grants across rebuilds.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application"
+        # Not sandboxed yet: whether Core Audio process taps work inside the
+        # App Sandbox is unverified. Decide before any Mac App Store submission.
+        ENABLE_APP_SANDBOX: NO
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: "5.0"
