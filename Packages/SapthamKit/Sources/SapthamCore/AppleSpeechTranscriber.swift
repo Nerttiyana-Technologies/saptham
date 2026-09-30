@@ -138,7 +138,7 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
                                                                 end: ranges.map(\.end.seconds).max()!)
                     let confidences = text.runs.compactMap(\.transcriptionConfidence)
                     let confidence = confidences.isEmpty ? nil : confidences.reduce(0, +) / Double(confidences.count)
-                    emit(.final(plain, audio: span, confidence: confidence))
+                    emit(.final(plain, audio: span, score: confidence.map { LineScore(confidence: $0) }))
                 } else {
                     emit(.volatile(plain))
                 }

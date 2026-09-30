@@ -8,7 +8,7 @@ struct BilingualArbiterTests {
     private func at(_ seconds: Double) -> Date { start.addingTimeInterval(seconds) }
 
     private func line(_ text: String, _ from: Double, _ to: Double, _ confidence: Double) -> TranscriptUpdate {
-        .final(text, audio: AudioSpan(start: from, end: to), confidence: confidence)
+        .final(text, audio: AudioSpan(start: from, end: to), score: LineScore(confidence: confidence))
     }
 
     private func texts(_ updates: [TranscriptUpdate]) -> [String] {
@@ -75,6 +75,21 @@ struct BilingualArbiterTests {
         #expect(texts(arbiter.finish()).isEmpty)
     }
 
+    @Test func winnersCarryTheirRecogniserAndTheRivalsConfidence() {
+        var configuration = BilingualArbiter.Configuration()
+        configuration.primaryName = "Tamil"
+        configuration.secondaryName = "English"
+        var arbiter = BilingualArbiter(configuration: configuration)
+        var shown = arbiter.add(line("Thank you.", 0, 1, 0.98), from: .secondary, at: at(1))
+        shown += arbiter.add(line("தேங்க் யூ", 0, 1, 0.86), from: .primary, at: at(1))
+        shown += arbiter.add(line("Vanakkam", 2, 3, 0.30), from: .secondary, at: at(3))
+        shown += arbiter.add(line("வணக்கம்", 2, 3, 0.95), from: .primary, at: at(3))
+        shown += arbiter.finish()
+        let scores = shown.compactMap { if case .final(_, _, let score) = $0 { score } else { nil } }
+        #expect(scores == [LineScore(confidence: 0.98, recogniser: "English", rivalConfidence: 0.86),
+                           LineScore(confidence: 0.95, recogniser: "Tamil", rivalConfidence: 0.30)])
+    }
+
     @Test func provisionalWordsFollowTheLatestWinner() {
         var arbiter = BilingualArbiter()
         #expect(arbiter.add(.volatile("வணக்"), from: .primary, at: at(0)) == [.volatile("வணக்")])
@@ -112,16 +127,16 @@ struct BilingualTranscriberTests {
 
     @Test func picksPerStretch() async throws {
         let transcriber = BilingualTranscriber(
-            primary: Scripted([.final("வணக்கம்", audio: AudioSpan(start: 0, end: 1), confidence: 0.95),
-                               .final("ஹவ் ஆர் யூ", audio: AudioSpan(start: 2, end: 3), confidence: 0.88)]),
-            secondary: Scripted([.final("Vanakkam", audio: AudioSpan(start: 0, end: 1), confidence: 0.3),
-                                 .final("How are you?", audio: AudioSpan(start: 2, end: 3), confidence: 0.98)]))
+            primary: Scripted([.final("வணக்கம்", audio: AudioSpan(start: 0, end: 1), score: LineScore(confidence: 0.95)),
+                               .final("ஹவ் ஆர் யூ", audio: AudioSpan(start: 2, end: 3), score: LineScore(confidence: 0.88))]),
+            secondary: Scripted([.final("Vanakkam", audio: AudioSpan(start: 0, end: 1), score: LineScore(confidence: 0.3)),
+                                 .final("How are you?", audio: AudioSpan(start: 2, end: 3), score: LineScore(confidence: 0.98))]))
         #expect(try await run(transcriber) == ["வணக்கம்", "How are you?"])
     }
 
     @Test func carriesOnWithThePrimaryWhenTheSecondaryFails() async throws {
         let transcriber = BilingualTranscriber(
-            primary: Scripted([.final("வணக்கம்", audio: AudioSpan(start: 0, end: 1), confidence: 0.95)]),
+            primary: Scripted([.final("வணக்கம்", audio: AudioSpan(start: 0, end: 1), score: LineScore(confidence: 0.95))]),
             secondary: Scripted([], failing: SapthamError("English is not installed")))
         #expect(try await run(transcriber) == ["வணக்கம்"])
     }
@@ -131,5 +146,21 @@ struct BilingualTranscriberTests {
             primary: Scripted([], failing: SapthamError("no Tamil model")),
             secondary: Scripted([]))
         await #expect(throws: SapthamError.self) { try await run(transcriber) }
+    }
+}
+
+struct TranscriptLineScoreTests {
+    @Test func linesSavedBeforeScoresExistedStillLoad() throws {
+        let json = #"{"id":"0B7C4A1E-6E0C-4D7A-9C1B-2F0D3C4B5A69","heard":"Hello","time":0}"#
+        let line = try JSONDecoder().decode(TranscriptLine.self, from: Data(json.utf8))
+        #expect(line.heard == "Hello")
+        #expect(line.score == nil)
+    }
+
+    @Test func scoresAreSavedWithTheLine() throws {
+        let line = TranscriptLine(heard: "Hello", time: Date(timeIntervalSinceReferenceDate: 0), audio: nil,
+                                  score: LineScore(confidence: 0.97, recogniser: "English", rivalConfidence: 0.88))
+        let decoded = try JSONDecoder().decode(TranscriptLine.self, from: JSONEncoder().encode(line))
+        #expect(decoded.score == line.score)
     }
 }

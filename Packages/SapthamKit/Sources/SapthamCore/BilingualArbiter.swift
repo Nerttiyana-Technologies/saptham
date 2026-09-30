@@ -34,6 +34,9 @@ public struct BilingualArbiter {
         public var settleAfter: TimeInterval = 2.0
         /// Lines this close in the audio count as overlapping.
         public var tolerance: Double = 0.15
+        /// Names saved with each line, to tell later which recogniser won.
+        public var primaryName = "primary"
+        public var secondaryName = "secondary"
 
         public init() {}
     }
@@ -67,7 +70,8 @@ public struct BilingualArbiter {
         switch update {
         case .volatile:
             return side == showing ? [update] : []
-        case .final(let text, let span, let confidence):
+        case .final(let text, let span, let score):
+            let confidence = score?.confidence
             guard let span else {
                 Diagnostics.engine.info("bilingual: line without timing from \(side == .primary ? "primary" : "secondary", privacy: .public), sure \(confidence ?? -1, privacy: .public)")
                 // Cannot be placed against the other side: trust only the
@@ -146,6 +150,14 @@ public struct BilingualArbiter {
             """)
         guard !winners.isEmpty else { return [] }
         showing = secondaryWins ? .secondary : .primary
-        return winners.map { .final($0.text, audio: $0.span, confidence: $0.confidence) }
+        let primaryConfidences = primary.compactMap(\.confidence)
+        let rival = secondaryWins
+            ? (primaryConfidences.isEmpty ? nil : primaryConfidences.reduce(0, +) / Double(primaryConfidences.count))
+            : (covered > 0 ? weighted / covered : nil)
+        let name = secondaryWins ? configuration.secondaryName : configuration.primaryName
+        return winners.map { line in
+            .final(line.text, audio: line.span,
+                   score: line.confidence.map { LineScore(confidence: $0, recogniser: name, rivalConfidence: rival) })
+        }
     }
 }

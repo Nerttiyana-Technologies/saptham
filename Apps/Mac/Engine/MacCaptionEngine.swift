@@ -82,7 +82,8 @@ enum MacCaptionEngine {
                     // Tamil script by default; English where Apple's
                     // English recogniser is sure it heard English.
                     BilingualTranscriber(primary: WindowedCTCTranscriber { try loadTamilModel() },
-                                         secondary: AppleSpeechTranscriber())
+                                         secondary: AppleSpeechTranscriber(),
+                                         configuration: bilingualConfiguration)
                 default:
                     AppleSpeechTranscriber()   // English (India)
                 }
@@ -99,6 +100,13 @@ enum MacCaptionEngine {
             })
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections)
     }
+
+    private static let bilingualConfiguration: BilingualArbiter.Configuration = {
+        var configuration = BilingualArbiter.Configuration()
+        configuration.primaryName = "Tamil"
+        configuration.secondaryName = "English"
+        return configuration
+    }()
 
     /// AI4Bharat's IndicConformer, converted by Tools/ModelBuild and bundled
     /// by the Xcode project. Runs on this Mac's GPU; nothing leaves the device.

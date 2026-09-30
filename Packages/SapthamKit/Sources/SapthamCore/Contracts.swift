@@ -22,10 +22,27 @@ public enum TranscriptUpdate: Equatable, Sendable {
     /// Provisional words for the sentence in progress; replaced by the next update.
     case volatile(String)
     /// A settled sentence, with where it lies in the audio stream and how
-    /// sure the recogniser is of it (0 … 1) when known. Confidence is on
-    /// each recogniser's own scale: two recognisers' values are only
-    /// comparable after measuring both on the same speech.
-    case final(String, audio: AudioSpan? = nil, confidence: Double? = nil)
+    /// sure the recogniser is of it, when known.
+    case final(String, audio: AudioSpan? = nil, score: LineScore? = nil)
+}
+
+/// How sure a recogniser is of one settled line. Saved with transcript
+/// lines, so how captions were chosen can be examined after a call.
+public struct LineScore: Codable, Equatable, Sendable {
+    /// 0 … 1, on the recogniser's own scale: two recognisers' values are
+    /// only comparable after measuring both on the same speech.
+    public var confidence: Double
+    /// Which recogniser wrote the line, when several competed for it.
+    public var recogniser: String?
+    /// How sure the competing recogniser was of the same stretch of audio,
+    /// when there was one and it produced anything.
+    public var rivalConfidence: Double?
+
+    public init(confidence: Double, recogniser: String? = nil, rivalConfidence: Double? = nil) {
+        self.confidence = confidence
+        self.recogniser = recogniser
+        self.rivalConfidence = rivalConfidence
+    }
 }
 
 /// A stretch of audio, in seconds from the first sample the recogniser was

@@ -159,15 +159,15 @@ public final class CaptionSession: CaptionControlling {
         switch update {
         case .volatile(let text):
             feed.apply(.volatile(correctText(text)))
-        case .final(let text, let audio, _):
+        case .final(let text, let audio, let score):
             feed.apply(.final(correctText(text), audio: audio))
-            record(text, audio: audio, sourceID: sourceID, languageID: languageID, recordingFile: recordingFile)
+            record(text, audio: audio, score: score, sourceID: sourceID, languageID: languageID, recordingFile: recordingFile)
         }
     }
 
     /// Saves the recogniser's own words; corrections are applied on display,
     /// so later rules also fix old transcripts.
-    private func record(_ heard: String, audio: AudioSpan?, sourceID: CaptionSourceOption.ID,
+    private func record(_ heard: String, audio: AudioSpan?, score: LineScore?, sourceID: CaptionSourceOption.ID,
                         languageID: CaptionLanguageOption.ID, recordingFile: String?) {
         guard let transcripts, !heard.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let now = Date()
@@ -181,7 +181,7 @@ public final class CaptionSession: CaptionControlling {
             languageID: languageID,
             recordingFile: recordingFile,
             at: now)
-        transcripts.appendLine(heard, audio: audio, at: now, to: id)
+        transcripts.appendLine(heard, audio: audio, score: score, at: now, to: id)
         conversation = (id, now)
     }
 

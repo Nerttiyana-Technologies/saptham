@@ -11,13 +11,17 @@ public struct TranscriptLine: Identifiable, Codable, Equatable, Sendable {
     public let time: Date
     /// Where the line lies in the session's recording, when there is one.
     public let audio: AudioSpan?
+    /// How sure the recogniser was; nil in lines saved before this was kept.
+    public let score: LineScore?
 
-    public init(id: UUID = UUID(), heard: String, edited: String? = nil, time: Date, audio: AudioSpan?) {
+    public init(id: UUID = UUID(), heard: String, edited: String? = nil, time: Date, audio: AudioSpan?,
+                score: LineScore? = nil) {
         self.id = id
         self.heard = heard
         self.edited = edited
         self.time = time
         self.audio = audio
+        self.score = score
     }
 }
 
@@ -55,7 +59,7 @@ public struct TranscriptSession: Identifiable, Codable, Equatable, Sendable {
 @MainActor
 public protocol TranscriptSink: AnyObject {
     func beginSession(sourceID: String, sourceTitle: String, languageID: String?, recordingFile: String?, at time: Date) -> TranscriptSession.ID
-    func appendLine(_ heard: String, audio: AudioSpan?, at time: Date, to session: TranscriptSession.ID)
+    func appendLine(_ heard: String, audio: AudioSpan?, score: LineScore?, at time: Date, to session: TranscriptSession.ID)
     func endSession(_ session: TranscriptSession.ID, at time: Date)
 }
 
@@ -94,8 +98,9 @@ public final class TranscriptLibrary: TranscriptSink {
         return session.id
     }
 
-    public func appendLine(_ heard: String, audio: AudioSpan?, at time: Date, to sessionID: TranscriptSession.ID) {
-        mutate(sessionID) { $0.lines.append(TranscriptLine(heard: heard, time: time, audio: audio)) }
+    public func appendLine(_ heard: String, audio: AudioSpan?, score: LineScore? = nil, at time: Date,
+                           to sessionID: TranscriptSession.ID) {
+        mutate(sessionID) { $0.lines.append(TranscriptLine(heard: heard, time: time, audio: audio, score: score)) }
     }
 
     public func endSession(_ sessionID: TranscriptSession.ID, at time: Date) {
