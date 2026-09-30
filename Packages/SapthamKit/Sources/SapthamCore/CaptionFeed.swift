@@ -36,6 +36,14 @@ public final class CaptionFeed {
     public private(set) var level: Float = 0
     /// When the most recent speech arrived; lets the UI fade when quiet.
     public private(set) var lastSpeechAt: Date?
+    /// True while audio is arriving (for call audio: a call is playing).
+    /// Turns false about `silenceAfter` after the last buffer.
+    public private(set) var isReceivingAudio = false
+
+    @ObservationIgnored private var silenceTimer: Task<Void, Never>?
+    private static let silenceAfter: Duration = .milliseconds(1_500)
+    /// About -60 dBFS: quieter than any speech, louder than digital silence.
+    private static let audibleLevel: Float = 0.001
 
     /// Older lines are dropped from memory; transcripts are not kept.
     public let maxLines: Int
@@ -60,11 +68,30 @@ public final class CaptionFeed {
 
     public func setState(_ state: CaptionState) {
         self.state = state
-        if state != .listening { level = 0 }
+        if state != .listening { markSilent() }
     }
 
+    /// Called for each burst of captured audio. Silence is detected both by
+    /// buffers stopping and by buffers that carry nothing audible: after a
+    /// relayed call ends, the Mac's call service keeps sending pure silence
+    /// (observed 2026-09-30), which must not count as a call in progress.
     public func setLevel(_ level: Float) {
         self.level = min(max(level, 0), 1)
+        guard level > Self.audibleLevel else { return }
+        if !isReceivingAudio { isReceivingAudio = true }
+        silenceTimer?.cancel()
+        silenceTimer = Task { [weak self] in
+            try? await Task.sleep(for: Self.silenceAfter)
+            guard !Task.isCancelled else { return }
+            self?.markSilent()
+        }
+    }
+
+    private func markSilent() {
+        silenceTimer?.cancel()
+        silenceTimer = nil
+        level = 0
+        isReceivingAudio = false
     }
 
     public func clear() {

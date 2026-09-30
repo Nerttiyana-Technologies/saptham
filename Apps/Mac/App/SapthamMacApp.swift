@@ -7,6 +7,7 @@ import SwiftUI
 struct SapthamMacApp: App {
     @State private var services: MacAppServices
     @State private var captionWindow = CaptionWindowController()
+    @State private var autoCalls: AutoCallCaptioner?
     @AppStorage("captionWindowVisible") private var captionWindowVisible = false
 
     private var controller: any CaptionControlling { services.captions }
@@ -38,8 +39,17 @@ struct SapthamMacApp: App {
              AnyView(TranscriptReviewView(transcripts: services.transcripts, corrections: services.corrections))),
             ("Corrections", CGSize(width: 700, height: 420), AnyView(CorrectionsView(corrections: services.corrections))),
             ("Settings", CGSize(width: 560, height: 360), AnyView(SapthamSettingsView(transcripts: services.transcripts))),
+            ("MenuBarPanel", CGSize(width: 360, height: 760),
+             AnyView(MenuBarPanel(controller: services.captions, captionWindow: panel, isCaptionWindowVisible: .constant(true)))),
         ])
         #endif
+
+        if !previewMode {
+            let autoCalls = AutoCallCaptioner(captions: engine, window: panel,
+                                              callSourceID: MacCaptionEngine.SourceID.calls)
+            autoCalls.start()
+            _autoCalls = State(initialValue: autoCalls)
+        }
 
         if UserDefaults.standard.bool(forKey: "captionWindowVisible") {
             Task { @MainActor in
@@ -61,6 +71,9 @@ struct SapthamMacApp: App {
 
         Window("Transcripts", id: "transcripts") {
             TranscriptReviewView(transcripts: services.transcripts, corrections: services.corrections)
+                #if DEBUG
+                .background(DemoSettingsOpener())
+                #endif
         }
         .defaultSize(width: 960, height: 680)
         // Demo mode opens the review window at launch for screenshots.
@@ -71,6 +84,7 @@ struct SapthamMacApp: App {
             CorrectionsView(corrections: services.corrections)
         }
         .defaultSize(width: 700, height: 480)
+        .defaultLaunchBehavior(Self.isPreviewMode ? .presented : .suppressed)
 
         Settings {
             SapthamSettingsView(transcripts: services.transcripts)

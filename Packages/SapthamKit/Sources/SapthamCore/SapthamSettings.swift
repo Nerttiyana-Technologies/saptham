@@ -9,6 +9,15 @@ public enum SapthamSettings {
     public static let recordCalls = "recordCalls"
     public static let recordCallsDefault = false
 
+    /// Listen for calls answered on this Mac whenever nothing else is being
+    /// captioned, and show the caption window when one starts.
+    public static let autoCaptionCalls = "autoCaptionCalls"
+    public static let autoCaptionCallsDefault = true
+
+    public static var autoCaptionCallsValue: Bool {
+        UserDefaults.standard.object(forKey: autoCaptionCalls) as? Bool ?? autoCaptionCallsDefault
+    }
+
     /// Days to keep transcripts and recordings; 0 keeps them forever.
     public static let keepDays = "transcriptKeepDays"
     public static let keepDaysDefault = 30

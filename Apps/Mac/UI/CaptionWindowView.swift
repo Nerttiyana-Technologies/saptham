@@ -52,8 +52,9 @@ struct CaptionWindowView: View {
                 }
         } else {
             // The window itself is Liquid Glass (NSGlassEffectView in
-            // CaptionWindowController); nothing to draw here.
-            Color.clear
+            // CaptionWindowController); the frost keeps captions readable
+            // over any background.
+            GlassFrost()
         }
     }
 
@@ -189,8 +190,7 @@ struct CaptionWindowView: View {
     }
 
     private var isHearingSpeech: Bool {
-        guard let last = controller.feed.lastSpeechAt else { return false }
-        return Date().timeIntervalSince(last) < 15
+        controller.feed.isReceivingAudio
     }
 
     private func scrollToLatest(using proxy: ScrollViewProxy) {

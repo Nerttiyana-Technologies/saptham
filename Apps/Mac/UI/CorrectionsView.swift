@@ -37,6 +37,9 @@ struct CorrectionsView: View {
                     }
                     .width(44)
                 }
+                .alternatingRowBackgrounds(.disabled)
+                // Rows sit directly on the window's glass.
+                .scrollContentBackground(.hidden)
                 .onDeleteCommand(perform: deleteSelected)
                 .contextMenu(forSelectionType: CorrectionRule.ID.self) { ids in
                     if let id = ids.first {
@@ -47,7 +50,7 @@ struct CorrectionsView: View {
             Divider()
             HStack {
                 Text("Changes apply to live captions and saved transcripts.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(.glassSecondary)
                 Spacer()
                 Button("Add correction", systemImage: "plus") { addingRule = true }
                     .buttonStyle(.borderedProminent)
@@ -56,6 +59,7 @@ struct CorrectionsView: View {
         }
         .navigationTitle("Corrections")
         .frame(minWidth: 600, minHeight: 380)
+        .glassWindowBackground()
         .sheet(isPresented: $addingRule) {
             AddCorrectionView(corrections: corrections) { addingRule = false }
         }

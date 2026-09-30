@@ -5,15 +5,21 @@ import SwiftUI
 struct SapthamSettingsView: View {
     let transcripts: TranscriptLibrary
     @AppStorage(SapthamSettings.recordCalls) private var recordCalls = SapthamSettings.recordCallsDefault
+    @AppStorage(SapthamSettings.autoCaptionCalls) private var autoCaptionCalls = SapthamSettings.autoCaptionCallsDefault
     @AppStorage(SapthamSettings.keepDays) private var keepDays = SapthamSettings.keepDaysDefault
     @State private var confirmsDeleteAll = false
 
     var body: some View {
         Form {
+            Section("Calls") {
+                Toggle("Caption calls automatically", isOn: $autoCaptionCalls)
+                Text("When you answer a call on this Mac, captions and the caption window start by themselves, and the window hides again after the call.")
+                    .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
+            }
             Section("Call recording") {
                 Toggle("Record phone calls", isOn: $recordCalls)
-                Text("Recordings of phone calls stay on this Mac and are used to review calls and, later, to teach Saptham your callers' voices. Takes effect from the next time Phone calls captioning starts.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("Recordings of phone calls stay on this Mac and are used to review calls and, later, to teach Saptham your callers' voices. Takes effect from the next call.")
+                    .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("Storage") {
                 Picker("Keep transcripts and recordings for", selection: $keepDays) {
@@ -38,6 +44,10 @@ struct SapthamSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // Drop the form's opaque page so the glass shows between the
+        // grouped sections; each section keeps its own readable card.
+        .scrollContentBackground(.hidden)
+        .glassWindowBackground()
         .frame(width: 520)
         .padding()
     }

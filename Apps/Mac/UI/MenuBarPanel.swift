@@ -10,6 +10,14 @@ struct MenuBarPanel: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @AppStorage("lastCaptionSourceID") private var lastSourceID = ""
+    @AppStorage(SapthamSettings.autoCaptionCalls) private var autoCaptionCalls = SapthamSettings.autoCaptionCallsDefault
+
+    /// With automatic call captions on, listening for calls is the resting
+    /// state; stopping it would only be undone half a second later.
+    private var canStop: Bool {
+        guard let active = controller.activeSourceID else { return false }
+        return !(autoCaptionCalls && active == "calls")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,6 +31,14 @@ struct MenuBarPanel: View {
 
                 ForEach(controller.sources) { source in
                     sourceRow(source)
+                }
+
+                Toggle(isOn: $autoCaptionCalls) {
+                    Label("Caption calls automatically", systemImage: "phone.badge.waveform")
+                }
+                .help("When a call is answered on this Mac, captions and the caption window start by themselves.")
+                .onChange(of: autoCaptionCalls) { _, on in
+                    if !on, controller.activeSourceID == "calls" { controller.stop() }
                 }
             }
 
@@ -67,7 +83,7 @@ struct MenuBarPanel: View {
                 } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
-                .disabled(controller.activeSourceID == nil)
+                .disabled(!canStop)
                 .accessibilityLabel("Stop captioning")
             }
 
@@ -98,11 +114,8 @@ struct MenuBarPanel: View {
         }
         .padding(18)
         .frame(width: 340)
-        .background {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.regularMaterial)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
+        // No background of our own: on macOS 27 the menu-bar window is
+        // already system Liquid Glass.
         .padding(8)
     }
 
@@ -203,8 +216,7 @@ struct MenuBarPanel: View {
         if case .failed = controller.feed.state { return "Choose Retry to try again." }
         guard controller.feed.state == .listening else { return "Choose a source to begin." }
         guard activeSource?.id == "calls" else { return "Listening for speech" }
-        let recentSpeech = controller.feed.lastSpeechAt.map { Date().timeIntervalSince($0) < 15 } ?? false
-        return recentSpeech ? "Call in progress" : "Waiting for a call"
+        return controller.feed.isReceivingAudio ? "Call in progress" : "Waiting for a call"
     }
 
     private var activeSource: CaptionSourceOption? {

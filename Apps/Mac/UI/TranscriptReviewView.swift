@@ -62,6 +62,9 @@ struct TranscriptReviewView: View {
             }
         }
         .frame(minWidth: 760, minHeight: 520)
+        // The window background is Liquid Glass; the system glass sidebar
+        // and toolbar float on top of it.
+        .glassWindowBackground()
         .onChange(of: transcripts.sessions) { _, sessions in
             if !sessions.contains(where: { $0.id == selectedSessionID }) { selectedSessionID = sessions.first?.id }
         }
@@ -122,12 +125,12 @@ private struct SessionRow: View {
                     .accessibilityHidden(true)
                 Text(session.sourceTitle).font(.headline)
                 Spacer(minLength: 4)
-                Text(session.startedAt, style: .time).foregroundStyle(.secondary)
+                Text(session.startedAt, style: .time).foregroundStyle(.glassSecondary)
             }
             Text(session.startedAt.formatted(date: .abbreviated, time: .omitted) + " · " + duration)
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(.glassSecondary)
             Text(session.lines.first?.displayText(using: corrector) ?? "No captions")
-                .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                .font(.subheadline).foregroundStyle(.glassSecondary).lineLimit(2)
         }
         .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
@@ -161,7 +164,7 @@ private struct SessionDetailView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(session.sourceTitle).font(.title2.weight(.semibold))
                     Text(session.startedAt.formatted(date: .complete, time: .shortened))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.glassSecondary)
                 }
                 Spacer()
                 Button("Copy Selected Lines", systemImage: "doc.on.doc") { copySelectedLines() }
@@ -246,7 +249,7 @@ private struct TranscriptLineRow: View {
             .accessibilityLabel(selectedLineIDs.contains(line.id) ? "Deselect line" : "Select line for copying")
             Text(line.time, style: .time)
                 .font(.callout.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.glassSecondary)
                 .frame(width: 72, alignment: .trailing)
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 8) {
@@ -268,7 +271,7 @@ private struct TranscriptLineRow: View {
                 HStack(spacing: 8) {
                     if line.edited != nil {
                         Label("Edited", systemImage: "pencil")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(.glassSecondary)
                             .accessibilityLabel("Manually edited")
                         Button("Revert to original") {
                             transcripts.setEdited(nil, line: line.id, in: session.id)
@@ -353,7 +356,7 @@ private struct TranscriptLineRow: View {
             Text(accessible ? "Correct this line" : "Correct selected words")
                 .font(.headline)
             Text(accessible ? "Heard: \(line.heard)" : "Heard: \(selectedPhrase)")
-                .foregroundStyle(.secondary).textSelection(.enabled)
+                .foregroundStyle(.glassSecondary).textSelection(.enabled)
             TextField("Should be:", text: $replacement, selection: $replacementSelection)
                 .textFieldStyle(.roundedBorder)
                 .focused($fieldFocused)

@@ -38,4 +38,21 @@ enum DebugSnapshots {
         }
     }
 }
+/// Demo aid: `--preview-captions --show-settings` opens Settings at launch
+/// (SwiftUI only lets a view open it), so every window can be reviewed.
+struct DemoSettingsOpener: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Color.clear.task {
+            let arguments = ProcessInfo.processInfo.arguments
+            guard arguments.contains("--preview-captions"), arguments.contains("--show-settings") else { return }
+            try? await Task.sleep(for: .seconds(1))
+            openSettings()
+            // Bring every window forward so all of them can be captured.
+            try? await Task.sleep(for: .seconds(1))
+            NSApp.windows.filter(\.isVisible).forEach { $0.orderFrontRegardless() }
+        }
+    }
+}
 #endif

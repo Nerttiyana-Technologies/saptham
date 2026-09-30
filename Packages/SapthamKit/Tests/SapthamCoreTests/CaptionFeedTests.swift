@@ -58,3 +58,20 @@ struct AudioFormatConverterTests {
         #expect(produced >= 32_000 - 320)   // at most 20 ms held back
     }
 }
+
+@MainActor
+struct CaptionFeedAudioActivityTests {
+    @Test func silentBuffersDoNotCountAsAudio() async throws {
+        let feed = CaptionFeed()
+        feed.setLevel(0)
+        #expect(!feed.isReceivingAudio)
+        feed.setLevel(0.2)
+        #expect(feed.isReceivingAudio)
+        // Silence keeps arriving after the call: activity must lapse.
+        for _ in 0..<20 {
+            feed.setLevel(0)
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        #expect(!feed.isReceivingAudio)
+    }
+}
