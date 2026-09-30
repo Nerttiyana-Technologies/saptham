@@ -24,6 +24,11 @@ enum MacCaptionEngine {
     enum LanguageID {
         static let english = "en"
         static let tamil = "ta"
+        /// Tamil conversations that move in and out of English. Also the
+        /// default in SapthamSettings.captionLanguageDefault, by agreement;
+        /// rename both together. Listed first, so an unknown saved id falls
+        /// back to it too.
+        static let tamilAndEnglish = "ta+en"
     }
 
     /// ~/Library/Application Support/Saptham — outside any repository, on
@@ -52,8 +57,9 @@ enum MacCaptionEngine {
                                     systemImage: "speaker.wave.2.fill"),
             ],
             languages: [
-                CaptionLanguageOption(id: LanguageID.english, title: "English", nativeTitle: "English"),
+                CaptionLanguageOption(id: LanguageID.tamilAndEnglish, title: "Tamil + English", nativeTitle: "தமிழ் + English"),
                 CaptionLanguageOption(id: LanguageID.tamil, title: "Tamil", nativeTitle: "தமிழ்"),
+                CaptionLanguageOption(id: LanguageID.english, title: "English", nativeTitle: "English"),
             ],
             languageID: SapthamSettings.captionLanguageValue,
             makeSource: { id in
@@ -72,6 +78,11 @@ enum MacCaptionEngine {
                 switch language {
                 case LanguageID.tamil:
                     WindowedCTCTranscriber { try loadTamilModel() }
+                case LanguageID.tamilAndEnglish:
+                    // Tamil script by default; English where Apple's
+                    // English recogniser is sure it heard English.
+                    BilingualTranscriber(primary: WindowedCTCTranscriber { try loadTamilModel() },
+                                         secondary: AppleSpeechTranscriber())
                 default:
                     AppleSpeechTranscriber()   // English (India)
                 }

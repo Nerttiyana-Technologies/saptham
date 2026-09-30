@@ -159,7 +159,7 @@ public final class CaptionSession: CaptionControlling {
         switch update {
         case .volatile(let text):
             feed.apply(.volatile(correctText(text)))
-        case .final(let text, let audio):
+        case .final(let text, let audio, _):
             feed.apply(.final(correctText(text), audio: audio))
             record(text, audio: audio, sourceID: sourceID, languageID: languageID, recordingFile: recordingFile)
         }

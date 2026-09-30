@@ -30,7 +30,11 @@ public enum SapthamSettings {
     /// The caption language (`CaptionLanguageOption.id`). Saved by the
     /// engine when the user switches; read once at launch.
     public static let captionLanguage = "captionLanguage"
-    public static let captionLanguageDefault = "en"
+    /// Tamil + English: most conversations mix the two.
+    /// Coupled to MacCaptionEngine.LanguageID.tamilAndEnglish, which the app
+    /// defines: the ids are only equal by agreement. If they drift apart,
+    /// CaptionSession quietly falls back to the app's first language.
+    public static let captionLanguageDefault = "ta+en"
 
     public static var captionLanguageValue: String {
         UserDefaults.standard.string(forKey: captionLanguage) ?? captionLanguageDefault

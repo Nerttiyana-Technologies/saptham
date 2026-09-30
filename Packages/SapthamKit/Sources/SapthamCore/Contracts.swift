@@ -21,8 +21,11 @@ public protocol SpeechTranscribing: AnyObject {
 public enum TranscriptUpdate: Equatable, Sendable {
     /// Provisional words for the sentence in progress; replaced by the next update.
     case volatile(String)
-    /// A settled sentence, with where it lies in the audio stream when known.
-    case final(String, audio: AudioSpan? = nil)
+    /// A settled sentence, with where it lies in the audio stream and how
+    /// sure the recogniser is of it (0 … 1) when known. Confidence is on
+    /// each recogniser's own scale: two recognisers' values are only
+    /// comparable after measuring both on the same speech.
+    case final(String, audio: AudioSpan? = nil, confidence: Double? = nil)
 }
 
 /// A stretch of audio, in seconds from the first sample the recogniser was

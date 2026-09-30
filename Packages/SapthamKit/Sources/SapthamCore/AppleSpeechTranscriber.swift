@@ -69,8 +69,9 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
                                            // fastResults trades a little accuracy in the
                                            // provisional words for showing them sooner.
                                            reportingOptions: [.volatileResults, .fastResults],
-                                           // Per-word timing, used only to measure caption delay.
-                                           attributeOptions: [.audioTimeRange])
+                                           // Per-word timing (caption delay, line position)
+                                           // and confidence (choosing between languages).
+                                           attributeOptions: [.audioTimeRange, .transcriptionConfidence])
             return Recogniser(module: module, results: Self.bridge(module.results) { ($0.text, $0.isFinal) })
         case .dictation:
             guard let supported = await DictationTranscriber.supportedLocale(equivalentTo: locale) else { throw unavailable }
@@ -78,7 +79,7 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
                                               contentHints: [],
                                               transcriptionOptions: [.punctuation],
                                               reportingOptions: [.volatileResults, .frequentFinalization],
-                                              attributeOptions: [.audioTimeRange])
+                                              attributeOptions: [.audioTimeRange, .transcriptionConfidence])
             return Recogniser(module: module, results: Self.bridge(module.results) { ($0.text, $0.isFinal) })
         }
     }
@@ -135,7 +136,9 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
                     let ranges = text.runs.compactMap(\.audioTimeRange)
                     let span = ranges.isEmpty ? nil : AudioSpan(start: ranges.map(\.start.seconds).min()!,
                                                                 end: ranges.map(\.end.seconds).max()!)
-                    emit(.final(plain, audio: span))
+                    let confidences = text.runs.compactMap(\.transcriptionConfidence)
+                    let confidence = confidences.isEmpty ? nil : confidences.reduce(0, +) / Double(confidences.count)
+                    emit(.final(plain, audio: span, confidence: confidence))
                 } else {
                     emit(.volatile(plain))
                 }

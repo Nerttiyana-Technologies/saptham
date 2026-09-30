@@ -252,7 +252,9 @@ public struct CTCLiveDecoder {
             return nil
         }
         let seconds = configuration.frameSeconds
-        return .final(line, audio: AudioSpan(start: Double(first) * seconds, end: Double(last + 1) * seconds))
+        let confidence = spoken.pieces.map { Double($0.probability) }.reduce(0, +) / Double(spoken.pieces.count)
+        return .final(line, audio: AudioSpan(start: Double(first) * seconds, end: Double(last + 1) * seconds),
+                      confidence: confidence)
     }
 
     private func text(from start: Int, to end: Int) -> String {

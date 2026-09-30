@@ -20,7 +20,7 @@ struct CTCLiveDecoderTests {
     }
 
     private func finals(_ updates: [TranscriptUpdate]) -> [String] {
-        updates.compactMap { if case .final(let text, _) = $0 { text } else { nil } }
+        updates.compactMap { if case .final(let text, _, _) = $0 { text } else { nil } }
     }
 
     @Test func speechThenPauseSettlesALineWithItsTiming() {
@@ -28,7 +28,7 @@ struct CTCLiveDecoderTests {
         let ids = frames([(blank, 2), (0, 2), (blank, 1), (1, 1), (2, 1), (blank, 10)])
         let updates = d.consume(ids: ids, firstFrame: 0)
         #expect(finals(updates) == ["vanakkam nanri"])
-        guard case .final(_, let span?) = updates.first(where: { if case .final = $0 { true } else { false } }) else {
+        guard case .final(_, let span?, _) = updates.first(where: { if case .final = $0 { true } else { false } }) else {
             Issue.record("no timing")
             return
         }
