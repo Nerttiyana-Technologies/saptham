@@ -60,7 +60,9 @@ public final class CaptionSession: CaptionControlling {
                         peak = max(peak, buffer.peakLevel)
                         if ContinuousClock.now - lastLevelAt > .milliseconds(100) {
                             let level = peak
-                            await MainActor.run { feed.setLevel(level) }
+                            // Fire-and-forget: awaiting the main actor here would stall
+                            // audio on its way to the recogniser whenever the UI is busy.
+                            Task { @MainActor in feed.setLevel(level) }
                             peak = 0
                             lastLevelAt = .now
                         }

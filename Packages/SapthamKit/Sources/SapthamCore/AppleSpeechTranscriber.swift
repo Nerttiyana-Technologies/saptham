@@ -1,22 +1,29 @@
 @preconcurrency import AVFoundation
 import Speech
 
-/// Apple's on-device recogniser (SpeechTranscriber, iOS/macOS 26+).
-/// Audio never leaves the device. Default locale is English (India).
+/// Apple's on-device recognisers (iOS/macOS 26+). Audio never leaves the
+/// device. Default locale is English (India).
 public final class AppleSpeechTranscriber: SpeechTranscribing {
-    private let locale: Locale
-
-    public init(locale: Locale = Locale(identifier: "en-IN")) {
-        self.locale = locale
+    /// Which of Apple's two on-device recognisers to use.
+    public enum Model: String, Sendable, CaseIterable {
+        /// SpeechTranscriber: Apple's newer long-form model. Ignores
+        /// vocabulary hints (measured 2026-09-30 on the latency bench).
+        case speech
+        /// DictationTranscriber: the system dictation model; honours
+        /// vocabulary hints and custom language models.
+        case dictation
     }
 
-    /// Makes sure the speech model for the locale is installed. Safe to call
-    /// repeatedly; downloads only the first time.
-    public func prepare() async throws {
-        let transcriber = try await makeModule()
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
-            try await request.downloadAndInstall()
-        }
+    private let locale: Locale
+    private let model: Model
+    private let vocabulary: [String]
+
+    /// - Parameter vocabulary: words and phrases the speaker is likely to say
+    ///   (names, places, jargon). Only the dictation model uses them.
+    public init(locale: Locale = Locale(identifier: "en-IN"), model: Model = .speech, vocabulary: [String] = []) {
+        self.locale = locale
+        self.model = model
+        self.vocabulary = vocabulary
     }
 
     public func transcribe(_ audio: AsyncStream<AVAudioPCMBuffer>) -> AsyncThrowingStream<TranscriptUpdate, Error> {
@@ -46,44 +53,98 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
         }
     }
 
-    private func makeModule() async throws -> SpeechTranscriber {
-        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            throw SapthamError("Speech recognition for \(locale.identifier) is not available on this device.")
+    /// One recogniser module plus its results reduced to (text, isFinal).
+    private struct Recogniser {
+        let module: any SpeechModule
+        let results: AsyncThrowingStream<(text: AttributedString, isFinal: Bool), Error>
+    }
+
+    private func makeRecogniser() async throws -> Recogniser {
+        let unavailable = SapthamError("Speech recognition for \(locale.identifier) is not available on this device.")
+        switch model {
+        case .speech:
+            guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else { throw unavailable }
+            let module = SpeechTranscriber(locale: supported,
+                                           transcriptionOptions: [],
+                                           // fastResults trades a little accuracy in the
+                                           // provisional words for showing them sooner.
+                                           reportingOptions: [.volatileResults, .fastResults],
+                                           // Per-word timing, used only to measure caption delay.
+                                           attributeOptions: [.audioTimeRange])
+            return Recogniser(module: module, results: Self.bridge(module.results) { ($0.text, $0.isFinal) })
+        case .dictation:
+            guard let supported = await DictationTranscriber.supportedLocale(equivalentTo: locale) else { throw unavailable }
+            let module = DictationTranscriber(locale: supported,
+                                              contentHints: [],
+                                              transcriptionOptions: [.punctuation],
+                                              reportingOptions: [.volatileResults, .frequentFinalization],
+                                              attributeOptions: [.audioTimeRange])
+            return Recogniser(module: module, results: Self.bridge(module.results) { ($0.text, $0.isFinal) })
         }
-        return SpeechTranscriber(locale: supported,
-                                 transcriptionOptions: [],
-                                 reportingOptions: [.volatileResults],
-                                 attributeOptions: [])
+    }
+
+    private static func bridge<Results: AsyncSequence & Sendable>(
+        _ results: Results,
+        _ transform: @escaping @Sendable (Results.Element) -> (text: AttributedString, isFinal: Bool)
+    ) -> AsyncThrowingStream<(text: AttributedString, isFinal: Bool), Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await result in results { continuation.yield(transform(result)) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     private func run(audio: AsyncStream<AVAudioPCMBuffer>,
                      emit: @escaping (TranscriptUpdate) -> Void) async throws {
         try await Self.requireSpeechPermission()
-        let transcriber = try await makeModule()
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+        let recogniser = try await makeRecogniser()
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: [recogniser.module]) {
             try await request.downloadAndInstall()
         }
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
-        guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+        let analyzer = SpeechAnalyzer(modules: [recogniser.module])
+        guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [recogniser.module]) else {
             throw SapthamError("The speech recogniser offered no audio format.")
+        }
+
+        if !vocabulary.isEmpty {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = vocabulary
+            try await analyzer.setContext(context)
         }
 
         let (inputs, feed) = AsyncStream<AnalyzerInput>.makeStream()
         try await analyzer.start(inputSequence: inputs)
-        Diagnostics.engine.info("recogniser ready")
+        Diagnostics.engine.info("recogniser ready (\(self.model.rawValue, privacy: .public))")
 
+        let latency = LatencyMeter()
         let results = Task {
-            for try await result in transcriber.results {
-                let text = String(result.text.characters)
-                emit(result.isFinal ? .final(text) : .volatile(text))
+            for try await (text, isFinal) in recogniser.results {
+                // Delay is measured from the end of the newest recognised word,
+                // not the end of the audio the recogniser has been given.
+                if let lastWordEnd = text.runs.compactMap({ $0.audioTimeRange?.end.seconds }).max() {
+                    latency.resultArrived(coveringAudioUpTo: lastWordEnd)
+                }
+                let plain = String(text.characters)
+                emit(isFinal ? .final(plain) : .volatile(plain))
             }
         }
 
         var converter: AudioFormatConverter?
+        var fedSeconds = 0.0
         for await buffer in audio {
             if Task.isCancelled { break }
             if converter == nil { converter = try AudioFormatConverter(from: buffer.format, to: analyzerFormat) }
-            if let converted = converter?.convert(buffer) { feed.yield(AnalyzerInput(buffer: converted)) }
+            if let converted = converter?.convert(buffer) {
+                feed.yield(AnalyzerInput(buffer: converted))
+                fedSeconds += Double(converted.frameLength) / analyzerFormat.sampleRate
+                latency.audioFed(upTo: fedSeconds)
+            }
         }
         feed.finish()
         if Task.isCancelled {

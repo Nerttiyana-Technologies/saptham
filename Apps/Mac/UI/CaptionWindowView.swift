@@ -36,6 +36,8 @@ struct CaptionWindowView: View {
             .padding(22)
         }
         .frame(minWidth: 340, minHeight: 170)
+        // The hidden title bar still reserves a safe area; captions use it.
+        .ignoresSafeArea()
         .onHover { isHovered = $0 }
     }
 
@@ -49,9 +51,9 @@ struct CaptionWindowView: View {
                         .strokeBorder(Color.primary.opacity(0.22), lineWidth: 1)
                 }
         } else {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.regularMaterial)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            // The window itself is Liquid Glass (NSGlassEffectView in
+            // CaptionWindowController); nothing to draw here.
+            Color.clear
         }
     }
 
@@ -87,7 +89,7 @@ struct CaptionWindowView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
             .onChange(of: controller.feed.lines.count) { _, _ in scrollToLatest(using: proxy) }
             .onChange(of: controller.feed.partial) { _, _ in scrollToLatest(using: proxy) }
             .onChange(of: controller.feed.state) { _, _ in scrollToLatest(using: proxy) }
