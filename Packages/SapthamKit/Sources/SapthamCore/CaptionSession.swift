@@ -98,7 +98,8 @@ public final class CaptionSession: CaptionControlling {
                         if let samples = buffer.floatChannelData?[0],
                            let brokenUp = brokenAudio.add(UnsafeBufferPointer(start: samples, count: Int(buffer.frameLength)),
                                                           sampleRate: buffer.format.sampleRate) {
-                            Diagnostics.engine.info("captured audio broken up: \(brokenUp, privacy: .public)")
+                            let block = brokenAudio.lastBlock.map { "\(Int($0.zeroShare * 100))% exact silence, \($0.gaps) gaps" } ?? ""
+                            Diagnostics.engine.info("captured audio broken up: \(brokenUp, privacy: .public) (\(block, privacy: .public))")
                             Task { @MainActor in feed.setAudioBrokenUp(brokenUp) }
                         }
                         recorder?.write(buffer)
