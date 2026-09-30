@@ -80,7 +80,10 @@ public final class CaptionSession: CaptionControlling {
                 let audio = try await source.start()
                 Diagnostics.engine.info("source \(sourceID, privacy: .public) started; listening")
                 feed.setState(.listening)
-                let (metered, meterFeed) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(100))
+                // Holds audio while the recogniser loads (a few seconds for the
+                // Tamil model): 1,000 buffers is about 10 s of 10 ms buffers.
+                // Only the oldest audio is dropped if it ever overflows.
+                let (metered, meterFeed) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(1_000))
                 // Tee: level meter and recorder on the way to the recogniser.
                 let pump = Task.detached {
                     var lastLevelAt = ContinuousClock.now

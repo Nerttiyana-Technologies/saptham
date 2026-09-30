@@ -1,5 +1,16 @@
 import Foundation
 
+/// One frame of a CTC model's output: its best guess and how sure it is.
+public struct CTCFrame: Equatable, Sendable {
+    public var id: Int
+    public var probability: Float
+
+    public init(id: Int, probability: Float) {
+        self.id = id
+        self.probability = probability
+    }
+}
+
 /// Turns the per-frame guesses of a CTC speech model, seen through a window
 /// that slides along the audio, into provisional and settled caption text.
 ///
@@ -16,6 +27,12 @@ import Foundation
 /// word, never inside one. Frames close to the window's right edge have
 /// heard little of what follows them, so they are shown but never settled.
 ///
+/// The model guesses words even for clicks, breathing and line noise, but
+/// with low confidence. Text whose pieces average below
+/// `minimumConfidence` is dropped when it is only a sound or two, and
+/// shown as `unclearText` when longer, so the reader still knows someone
+/// spoke.
+///
 /// Pure logic with no audio or model, so it can be tested with made-up frames.
 public struct CTCLiveDecoder {
     public struct Configuration: Sendable {
@@ -29,6 +46,15 @@ public struct CTCLiveDecoder {
         public var maxPendingFrames = 137
         /// A forced split ignores this many newest pending frames (1 s).
         public var forcedSplitTailFrames = 25
+        /// Average probability of a line's pieces below which it is not
+        /// trusted. Measured 2026-09-30: real speech on a call scored
+        /// 0.80–0.98 and noise bursts 0.22–0.66; the weakest 1 % of FLEURS
+        /// Tamil sentences scored 0.86.
+        public var minimumConfidence: Float = 0.70
+        /// Untrusted text with fewer pieces than this is dropped; longer
+        /// untrusted text becomes `unclearText`.
+        public var unclearMinimumPieces = 4
+        public var unclearText = "(unclear)"
 
         public init() {}
 
@@ -47,8 +73,9 @@ public struct CTCLiveDecoder {
     public let configuration: Configuration
     private let wordStart: [Bool]
 
-    /// Latest guess for each frame from `base` onward.
+    /// Latest guess for each frame from `base` onward, and its probability.
     private var frames: [Int] = []
+    private var probabilities: [Float] = []
     private var base = 0
     /// Frames before this are settled.
     private var settled = 0
@@ -66,13 +93,19 @@ public struct CTCLiveDecoder {
         self.lastSettledID = blank
     }
 
-    /// - Parameters:
-    ///   - ids: best vocabulary index (or `blank`) for each frame of the window.
-    ///   - firstFrame: the stream frame index of `ids[0]`; negative while the
-    ///     window still reaches back before the start of the stream.
+    /// Frames whose guesses are all fully confident.
     public mutating func consume(ids: [Int], firstFrame: Int) -> [TranscriptUpdate] {
-        store(ids, from: firstFrame)
-        let end = firstFrame + ids.count
+        consume(frames: ids.map { CTCFrame(id: $0, probability: 1) }, firstFrame: firstFrame)
+    }
+
+    /// - Parameters:
+    ///   - frames: best vocabulary index (or `blank`) for each frame of the
+    ///     window, with the model's probability for it.
+    ///   - firstFrame: the stream frame index of `frames[0]`; negative while
+    ///     the window still reaches back before the start of the stream.
+    public mutating func consume(frames window: [CTCFrame], firstFrame: Int) -> [TranscriptUpdate] {
+        store(window, from: firstFrame)
+        let end = firstFrame + window.count
         let settleEnd = end - configuration.rightGuardFrames
         var updates: [TranscriptUpdate] = []
 
@@ -96,25 +129,36 @@ public struct CTCLiveDecoder {
 
     // MARK: -
 
-    private mutating func store(_ ids: [Int], from firstFrame: Int) {
+    private mutating func store(_ window: [CTCFrame], from firstFrame: Int) {
         let start = max(firstFrame, settled)
-        guard start < firstFrame + ids.count else { return }
+        guard start < firstFrame + window.count else { return }
         if frames.isEmpty { base = start }
         // Keep only what is unsettled.
         if settled > base {
-            frames.removeFirst(min(settled - base, frames.count))
+            let drop = min(settled - base, frames.count)
+            frames.removeFirst(drop)
+            probabilities.removeFirst(drop)
             base = settled
         }
-        let needed = firstFrame + ids.count - base
-        if frames.count < needed { frames += Array(repeating: blank, count: needed - frames.count) }
-        for frame in start..<(firstFrame + ids.count) {
-            frames[frame - base] = ids[frame - firstFrame]
+        let needed = firstFrame + window.count - base
+        if frames.count < needed {
+            frames += Array(repeating: blank, count: needed - frames.count)
+            probabilities += Array(repeating: 1, count: needed - probabilities.count)
+        }
+        for frame in start..<(firstFrame + window.count) {
+            frames[frame - base] = window[frame - firstFrame].id
+            probabilities[frame - base] = window[frame - firstFrame].probability
         }
     }
 
     private func id(at frame: Int) -> Int {
         let index = frame - base
         return frames.indices.contains(index) ? frames[index] : blank
+    }
+
+    private func probability(at frame: Int) -> Float {
+        let index = frame - base
+        return probabilities.indices.contains(index) ? probabilities[index] : 1
     }
 
     /// True when the first piece after `frame` starts a word, or nothing has
@@ -176,42 +220,52 @@ public struct CTCLiveDecoder {
         return searchEnd
     }
 
-    private mutating func settle(upTo cut: Int) -> TranscriptUpdate? {
-        guard cut > settled else { return nil }
-        var pieces: [Int] = []
+    /// The pieces spoken in `start..<end` (CTC collapse: repeats merged,
+    /// blanks dropped), each with the probability of the frame it begins on.
+    private func collapse(from start: Int, to end: Int)
+        -> (pieces: [(id: Int, probability: Float)], firstSpoken: Int?, lastSpoken: Int?, lastID: Int) {
+        var pieces: [(id: Int, probability: Float)] = []
         var previous = lastSettledID
         var firstSpoken: Int?
         var lastSpoken: Int?
-        for frame in settled..<cut {
+        var frame = max(start, base)
+        while frame < end {
             let piece = id(at: frame)
             if piece != blank {
-                if piece != previous { pieces.append(piece) }
+                if piece != previous { pieces.append((piece, probability(at: frame))) }
                 firstSpoken = firstSpoken ?? frame
                 lastSpoken = frame
             }
             previous = piece
+            frame += 1
         }
+        return (pieces, firstSpoken, lastSpoken, previous)
+    }
+
+    private mutating func settle(upTo cut: Int) -> TranscriptUpdate? {
+        guard cut > settled else { return nil }
+        let spoken = collapse(from: settled, to: cut)
         settled = cut
-        lastSettledID = previous
+        lastSettledID = spoken.lastID
         lastVolatile = ""
-        let line = join(pieces)
-        guard !line.isEmpty, let firstSpoken, let lastSpoken else { return nil }
+        guard let line = caption(spoken.pieces), let first = spoken.firstSpoken, let last = spoken.lastSpoken else {
+            return nil
+        }
         let seconds = configuration.frameSeconds
-        return .final(line, audio: AudioSpan(start: Double(firstSpoken) * seconds,
-                                             end: Double(lastSpoken + 1) * seconds))
+        return .final(line, audio: AudioSpan(start: Double(first) * seconds, end: Double(last + 1) * seconds))
     }
 
     private func text(from start: Int, to end: Int) -> String {
-        var pieces: [Int] = []
-        var previous = lastSettledID
-        var frame = max(start, base)
-        while frame < end {
-            let piece = id(at: frame)
-            if piece != blank, piece != previous { pieces.append(piece) }
-            previous = piece
-            frame += 1
-        }
-        return join(pieces)
+        caption(collapse(from: start, to: end).pieces) ?? ""
+    }
+
+    /// What to show for these pieces: their text, `unclearText`, or nothing.
+    private func caption(_ pieces: [(id: Int, probability: Float)]) -> String? {
+        let line = join(pieces.map(\.id))
+        guard !line.isEmpty else { return nil }
+        let confidence = pieces.map(\.probability).reduce(0, +) / Float(pieces.count)
+        guard confidence < configuration.minimumConfidence else { return line }
+        return pieces.count >= configuration.unclearMinimumPieces ? configuration.unclearText : nil
     }
 
     private func join(_ pieces: [Int]) -> String {

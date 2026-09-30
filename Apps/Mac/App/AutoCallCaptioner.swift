@@ -7,7 +7,9 @@ import SapthamCore
 ///   receives audio only while a call is actually playing);
 /// - when call audio starts it brings up the caption window;
 /// - 30 s after call audio stops it hides the window again, but only if it
-///   was the one that showed it.
+///   was the one that showed it, and restarts listening so the call's
+///   recording file and transcript are closed (they otherwise stay open
+///   until captioning stops, and a crash would lose the recording).
 ///
 /// Works purely through CaptionControlling and the caption window; the
 /// engine does not know it exists.
@@ -23,6 +25,8 @@ final class AutoCallCaptioner {
     /// Recording is decided when the call source starts; remember the value
     /// it started with so a change can be picked up between calls.
     private var armedWithRecording: Bool?
+    /// Call audio has arrived since the source was last armed.
+    private var heardCallSinceArming = false
 
     private static let hideAfter: TimeInterval = 30
     /// After a failure (e.g. permission denied), retry this rarely instead of
@@ -63,6 +67,7 @@ final class AutoCallCaptioner {
         let defaults = UserDefaults.standard
         if captions.feed.isReceivingAudio {
             lastCallAudioAt = Date()
+            heardCallSinceArming = true
             if !defaults.bool(forKey: Self.windowVisibleKey) {
                 window.show(controller: captions)
                 defaults.set(true, forKey: Self.windowVisibleKey)
@@ -76,6 +81,13 @@ final class AutoCallCaptioner {
             shownAutomatically = false
             Diagnostics.engine.info("call audio ended; caption window hidden")
         }
+
+        if heardCallSinceArming, !captions.feed.isReceivingAudio, let last = lastCallAudioAt,
+           Date().timeIntervalSince(last) > Self.hideAfter {
+            Diagnostics.engine.info("call over; closing its recording and transcript")
+            captions.stop()
+            arm()
+        }
     }
 
     private func arm() {
@@ -85,6 +97,7 @@ final class AutoCallCaptioner {
         }
         lastArmAttemptAt = Date()
         armedWithRecording = SapthamSettings.recordCallsValue
+        heardCallSinceArming = false
         captions.start(callSourceID)
     }
 }

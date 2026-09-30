@@ -70,6 +70,31 @@ struct CTCLiveDecoderTests {
         #expect(finals(updates).first == "vanakkam nanri")
     }
 
+    private func sure(_ pattern: [(Int, Int)], probability: Float) -> [CTCFrame] {
+        frames(pattern).map { CTCFrame(id: $0, probability: $0 == blank ? 0.99 : probability) }
+    }
+
+    @Test func dropsAnUnsureSoundOrTwo() {
+        var d = decoder()
+        // A click the model half-reads as "▁na nri".
+        let updates = d.consume(frames: sure([(1, 1), (2, 1), (blank, 12)], probability: 0.4), firstFrame: 0)
+        #expect(finals(updates) == [])
+        #expect(!updates.contains(.volatile("nanri")))
+    }
+
+    @Test func marksLongUnsureSpeechUnclear() {
+        var d = decoder()
+        let updates = d.consume(frames: sure([(0, 1), (blank, 1), (1, 1), (2, 1), (blank, 1), (3, 1), (blank, 12)],
+                                             probability: 0.4), firstFrame: 0)
+        #expect(finals(updates) == ["(unclear)"])
+    }
+
+    @Test func keepsConfidentSpeech() {
+        var d = decoder()
+        let updates = d.consume(frames: sure([(1, 1), (2, 1), (blank, 12)], probability: 0.9), firstFrame: 0)
+        #expect(finals(updates) == ["nanri"])
+    }
+
     @Test func silenceProducesNothing() {
         var d = decoder()
         #expect(d.consume(ids: frames([(blank, 40)]), firstFrame: -10) == [])

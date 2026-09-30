@@ -71,3 +71,4 @@ Saptham.xcodeproj/
 /build/
 # Speech models built by Tools/ModelBuild (hundreds of MB; rebuilt, never committed)
 /Models/
+__pycache__/

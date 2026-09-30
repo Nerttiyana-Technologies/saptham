@@ -10,8 +10,9 @@ public protocol CTCWindowModel: AnyObject {
     var vocabulary: [String] { get }
     var blank: Int { get }
     var wordStartMarker: String { get }
-    /// Best vocabulary index or `blank` for each frame; `window.count == windowSamples`.
-    func bestPieces(window: [Float]) throws -> [Int]
+    /// Best vocabulary index or `blank` for each frame, with its
+    /// probability; `window.count == windowSamples`.
+    func bestPieces(window: [Float]) throws -> [CTCFrame]
 }
 
 /// A CTC model packaged as `<name>.mlmodelc` (compiled by Xcode from the
@@ -53,7 +54,7 @@ public final class CoreMLCTCModel: CTCWindowModel {
         wordStartMarker = info.wordStartMarker
     }
 
-    public func bestPieces(window: [Float]) throws -> [Int] {
+    public func bestPieces(window: [Float]) throws -> [CTCFrame] {
         let input = try MLMultiArray(shape: [1, NSNumber(value: windowSamples)], dataType: .float32)
         window.withUnsafeBufferPointer { samples in
             input.withUnsafeMutableBufferPointer(ofType: Float.self) { pointer, _ in
@@ -67,13 +68,14 @@ public final class CoreMLCTCModel: CTCWindowModel {
         return Self.argmaxPerFrame(scores)
     }
 
-    /// `scores` is [pieces, frames]; returns the best piece for each frame.
-    private static func argmaxPerFrame(_ scores: MLMultiArray) -> [Int] {
+    /// `scores` is [pieces, frames] of log-probabilities; returns the best
+    /// piece for each frame and its probability.
+    private static func argmaxPerFrame(_ scores: MLMultiArray) -> [CTCFrame] {
         let pieces = scores.shape[0].intValue
         let frames = scores.shape[1].intValue
         let pieceStride = scores.strides[0].intValue
         let frameStride = scores.strides[1].intValue
-        var best = [Int](repeating: 0, count: frames)
+        var best = [CTCFrame](repeating: CTCFrame(id: 0, probability: 0), count: frames)
         func scan<T: BinaryFloatingPoint>(_ pointer: UnsafeBufferPointer<T>) {
             for frame in 0..<frames {
                 var bestPiece = 0
@@ -82,7 +84,7 @@ public final class CoreMLCTCModel: CTCWindowModel {
                     let score = pointer[piece * pieceStride + frame * frameStride]
                     if score > bestScore { bestScore = score; bestPiece = piece }
                 }
-                best[frame] = bestPiece
+                best[frame] = CTCFrame(id: bestPiece, probability: Float(exp(Double(bestScore))))
             }
         }
         switch scores.dataType {
@@ -130,6 +132,10 @@ public final class WindowedCTCTranscriber: SpeechTranscribing {
                                          channels: 1, interleaved: false) else {
             throw SapthamError("Cannot describe the speech model's audio format.")
         }
+        // The first prediction sets up the GPU and took 2 s on a real call,
+        // long enough for the audio queue to overflow and lose speech; pay
+        // that cost before any audio arrives.
+        _ = try model.bestPieces(window: [Float](repeating: 0, count: model.windowSamples))
         Diagnostics.engine.info("Tamil recogniser ready")
         let windowSamples = model.windowSamples
         let hop = Int(hopSeconds * model.sampleRate) / model.frameSamples * model.frameSamples
@@ -160,7 +166,7 @@ public final class WindowedCTCTranscriber: SpeechTranscribing {
                 // (negative until a full window has been heard).
                 let firstFrame = (received - windowSamples) / model.frameSamples
                 latency.resultArrived(coveringAudioUpTo: Double(received) / model.sampleRate)
-                for update in decoder.consume(ids: Array(pieces.prefix(frameCount)), firstFrame: firstFrame) {
+                for update in decoder.consume(frames: Array(pieces.prefix(frameCount)), firstFrame: firstFrame) {
                     emit(update)
                 }
             }
