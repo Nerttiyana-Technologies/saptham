@@ -28,6 +28,13 @@ struct MenuBarPanel: View {
                 Label("Show caption window", systemImage: "rectangle.inset.filled")
             }
             .accessibilityLabel("Show caption window")
+            .onChange(of: isCaptionWindowVisible) { _, visible in
+                if visible {
+                    captionWindow.show(controller: controller)
+                } else {
+                    captionWindow.hide()
+                }
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
@@ -120,9 +127,10 @@ struct MenuBarPanel: View {
         return Button {
             lastSourceID = source.id
             controller.start(source.id)
-            if isCaptionWindowVisible {
-                captionWindow.show(controller: controller)
-            }
+            // Captions nobody can see are useless: starting a source always
+            // brings the caption window up.
+            isCaptionWindowVisible = true
+            captionWindow.show(controller: controller)
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: source.systemImage)

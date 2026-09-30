@@ -23,6 +23,12 @@ struct SapthamMacApp: App {
             UserDefaults.standard.set(true, forKey: "captionWindowVisible")
         }
 
+        // Diagnostics: `--start <source id>` begins captioning at launch.
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "--start"), index + 1 < arguments.count {
+            engine.start(arguments[index + 1])
+        }
+
         if UserDefaults.standard.bool(forKey: "captionWindowVisible") {
             Task { @MainActor in
                 await Task.yield()

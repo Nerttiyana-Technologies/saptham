@@ -42,14 +42,21 @@ public final class CaptionSession: CaptionControlling {
 
         let task = Task { @MainActor [weak self] in
             do {
+                Diagnostics.engine.info("starting source \(sourceID, privacy: .public)")
                 let audio = try await source.start()
+                Diagnostics.engine.info("source \(sourceID, privacy: .public) started; listening")
                 feed.setState(.listening)
                 let (metered, meterFeed) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(100))
                 // Tee: level meter on the way to the recogniser.
                 let pump = Task.detached {
                     var lastLevelAt = ContinuousClock.now
                     var peak: Float = 0
+                    var loggedFirstBuffer = false
                     for await buffer in audio {
+                        if !loggedFirstBuffer {
+                            loggedFirstBuffer = true
+                            Diagnostics.engine.info("first audio buffer: \(buffer.format.description, privacy: .public)")
+                        }
                         peak = max(peak, buffer.peakLevel)
                         if ContinuousClock.now - lastLevelAt > .milliseconds(100) {
                             let level = peak
@@ -69,6 +76,7 @@ public final class CaptionSession: CaptionControlling {
             } catch is CancellationError {
                 // stopped by the user
             } catch {
+                Diagnostics.engine.error("captioning failed: \(String(describing: error), privacy: .public)")
                 feed.setState(.failed(error.localizedDescription))
             }
             if !Task.isCancelled { self?.finished(sourceID) }

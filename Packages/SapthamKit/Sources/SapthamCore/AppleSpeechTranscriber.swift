@@ -33,6 +33,19 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
         }
     }
 
+    /// The standalone test program asked for this permission and worked; the
+    /// app did not ask and produced no captions, so ask before every run
+    /// (the system only shows the prompt once).
+    private static func requireSpeechPermission() async throws {
+        let status = await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
+        }
+        Diagnostics.engine.info("speech permission status \(status.rawValue, privacy: .public)")
+        guard status == .authorized else {
+            throw SapthamError("Speech recognition is off. Turn it on in System Settings → Privacy & Security → Speech Recognition.")
+        }
+    }
+
     private func makeModule() async throws -> SpeechTranscriber {
         guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
             throw SapthamError("Speech recognition for \(locale.identifier) is not available on this device.")
@@ -45,6 +58,7 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
 
     private func run(audio: AsyncStream<AVAudioPCMBuffer>,
                      emit: @escaping (TranscriptUpdate) -> Void) async throws {
+        try await Self.requireSpeechPermission()
         let transcriber = try await makeModule()
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             try await request.downloadAndInstall()
@@ -56,6 +70,7 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
 
         let (inputs, feed) = AsyncStream<AnalyzerInput>.makeStream()
         try await analyzer.start(inputSequence: inputs)
+        Diagnostics.engine.info("recogniser ready")
 
         let results = Task {
             for try await result in transcriber.results {
