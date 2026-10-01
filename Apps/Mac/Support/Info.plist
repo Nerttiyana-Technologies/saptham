@@ -6,6 +6,37 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Saptham</string>
+	<!-- Lists Saptham under Finder's Open With for sound files (voice notes).
+	     Alternate rank: it never becomes the default player. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Voice note</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+			</array>
+		</dict>
+	</array>
+	<!-- saptham://transcripts opens the Transcripts window. Used by
+	     SapthamAppDelegate after files are opened with Saptham; keep in step
+	     with SapthamAppDelegate.showTranscriptsURL. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.nerttiyana.saptham.mac</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>saptham</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

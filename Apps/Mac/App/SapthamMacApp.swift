@@ -5,8 +5,10 @@ import SwiftUI
 @main
 @MainActor
 struct SapthamMacApp: App {
+    @NSApplicationDelegateAdaptor private var appDelegate: SapthamAppDelegate
     @State private var services: MacAppServices
     @State private var captionWindow = CaptionWindowController()
+    @State private var navigation: TranscriptNavigation
     @State private var autoCalls: AutoCallCaptioner?
     @AppStorage("captionWindowVisible") private var captionWindowVisible = false
 
@@ -21,6 +23,9 @@ struct SapthamMacApp: App {
         let panel = CaptionWindowController()
         _services = State(initialValue: services)
         _captionWindow = State(initialValue: panel)
+        let navigation = TranscriptNavigation(voiceNotes: services.voiceNotes)
+        _navigation = State(initialValue: navigation)
+        appDelegate.navigation = navigation
 
         if previewMode, let firstSource = engine.sources.first {
             engine.start(firstSource.id)
@@ -40,11 +45,13 @@ struct SapthamMacApp: App {
         #if DEBUG
         DebugSnapshots.scheduleIfRequested(extraViews: [
             ("Transcripts", CGSize(width: 1000, height: 640),
-             AnyView(TranscriptReviewView(transcripts: services.transcripts, corrections: services.corrections))),
+             AnyView(TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
+                                       navigation: navigation))),
             ("Corrections", CGSize(width: 700, height: 420), AnyView(CorrectionsView(corrections: services.corrections))),
             ("Settings", CGSize(width: 560, height: 560), AnyView(SapthamSettingsView(transcripts: services.transcripts))),
             ("MenuBarPanel", CGSize(width: 360, height: 760),
-             AnyView(MenuBarPanel(controller: services.captions, captionWindow: panel, isCaptionWindowVisible: .constant(true)))),
+             AnyView(MenuBarPanel(controller: services.captions, captionWindow: panel, navigation: navigation,
+                                  isCaptionWindowVisible: .constant(true)))),
         ])
         #endif
 
@@ -68,18 +75,25 @@ struct SapthamMacApp: App {
             MenuBarPanel(
                 controller: controller,
                 captionWindow: captionWindow,
+                navigation: navigation,
                 isCaptionWindowVisible: $captionWindowVisible
             )
         }
         .menuBarExtraStyle(.window)
 
         Window("Transcripts", id: "transcripts") {
-            TranscriptReviewView(transcripts: services.transcripts, corrections: services.corrections)
+            TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
+                              navigation: navigation)
                 #if DEBUG
                 .background(DemoSettingsOpener())
                 #endif
         }
         .defaultSize(width: 960, height: 680)
+        // Coupled to SapthamAppDelegate by this URL: opening it is the only
+        // way AppKit code can bring a SwiftUI Window scene up. Matching
+        // anything wider (e.g. "*") makes SwiftUI hand this window the first
+        // sound file of a batch and the delegate only the rest.
+        .handlesExternalEvents(matching: [SapthamAppDelegate.showTranscriptsURL.absoluteString])
         // Demo mode opens the review window at launch for screenshots.
         .defaultLaunchBehavior(Self.isPreviewMode ? .presented : .suppressed)
         .commands { TranscriptCommands() }
@@ -88,6 +102,9 @@ struct SapthamMacApp: App {
             CorrectionsView(corrections: services.corrections)
         }
         .defaultSize(width: 700, height: 480)
+        // A scene with no rule takes any URL the app is sent, so without
+        // this saptham://transcripts would open Corrections as well.
+        .handlesExternalEvents(matching: [])
         .defaultLaunchBehavior(Self.isPreviewMode ? .presented : .suppressed)
 
         Settings {
@@ -104,5 +121,27 @@ struct SapthamMacApp: App {
         case .idle, .preparing:
             "captions.bubble"
         }
+    }
+}
+
+/// Receives sound files opened with Saptham (Finder's Open With, or files
+/// dropped on the app icon), all of them in one call.
+@MainActor
+final class SapthamAppDelegate: NSObject, NSApplicationDelegate {
+    /// Opens the Transcripts window. Coupled by agreement to that scene's
+    /// `handlesExternalEvents` in SapthamMacApp and to CFBundleURLTypes in
+    /// Info.plist; change all three together or files are transcribed
+    /// with no window shown.
+    static let showTranscriptsURL = URL(string: "saptham://transcripts")!
+
+    var navigation: TranscriptNavigation?
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        let files = urls.filter(\.isFileURL)
+        guard let navigation, !files.isEmpty else { return }
+        Diagnostics.engine.info("opened with Saptham: \(files.count, privacy: .public) files")
+        for file in files { navigation.openVoiceNote(file) }
+        NSApp.activate(ignoringOtherApps: true)
+        NSWorkspace.shared.open(Self.showTranscriptsURL)
     }
 }

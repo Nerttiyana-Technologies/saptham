@@ -5,6 +5,7 @@ import SwiftUI
 struct MenuBarPanel: View {
     let controller: any CaptionControlling
     let captionWindow: CaptionWindowController
+    let navigation: TranscriptNavigation
     @Binding var isCaptionWindowVisible: Bool
     @AppStorage("captionTextSize") private var textSize = 30.0
     @Environment(\.openWindow) private var openWindow
@@ -98,6 +99,10 @@ struct MenuBarPanel: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 4) {
+                Button("Transcribe voice note…", systemImage: "waveform") {
+                    if navigation.chooseVoiceNotes() { openWindow(id: "transcripts") }
+                }
+                .help("Voice messages and recordings, transcribed on this Mac")
                 Button("Review transcripts…", systemImage: "text.alignleft") {
                     NSApp.activate(ignoringOtherApps: true)
                     openWindow(id: "transcripts")

@@ -9,6 +9,7 @@ struct MacAppServices {
     let captions: any CaptionControlling
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
+    let voiceNotes: VoiceNotes
 }
 
 /// Composition root for the Mac app: the only place that knows which audio
@@ -74,20 +75,7 @@ enum MacCaptionEngine {
                     nil
                 }
             },
-            makeTranscriber: { language in
-                switch language {
-                case LanguageID.tamil:
-                    WindowedCTCTranscriber { try loadTamilModel() }
-                case LanguageID.tamilAndEnglish:
-                    // Tamil script by default; English where Apple's
-                    // English recogniser is sure it heard English.
-                    BilingualTranscriber(primary: WindowedCTCTranscriber { try loadTamilModel() },
-                                         secondary: AppleSpeechTranscriber(),
-                                         configuration: bilingualConfiguration)
-                default:
-                    AppleSpeechTranscriber()   // English (India)
-                }
-            },
+            makeTranscriber: makeTranscriber,
             languageChanged: { UserDefaults.standard.set($0, forKey: SapthamSettings.captionLanguage) },
             transcripts: transcripts,
             correctText: { corrections.apply(to: $0) },
@@ -101,10 +89,32 @@ enum MacCaptionEngine {
             // Every source: songs reach calls (hold music) and the
             // microphone as well as "Everything playing".
             makeSceneDetector: { SoundSceneDetector() })
-        return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections)
+        // Voice notes use whichever caption language is chosen when they arrive.
+        let voiceNotes = VoiceNotes(recordingsFolder: transcripts.recordingsFolder, transcripts: transcripts,
+                                    languageID: { captions.activeLanguageID },
+                                    makeTranscriber: makeTranscriber)
+        return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
+                              voiceNotes: voiceNotes)
     }
 
-    private static let bilingualConfiguration: BilingualArbiter.Configuration = {
+    /// A fresh recogniser for a caption language: live captions and voice
+    /// notes both build theirs here.
+    nonisolated static func makeTranscriber(_ language: CaptionLanguageOption.ID) -> SpeechTranscribing {
+        switch language {
+        case LanguageID.tamil:
+            WindowedCTCTranscriber { try loadTamilModel() }
+        case LanguageID.tamilAndEnglish:
+            // Tamil script by default; English where Apple's
+            // English recogniser is sure it heard English.
+            BilingualTranscriber(primary: WindowedCTCTranscriber { try loadTamilModel() },
+                                 secondary: AppleSpeechTranscriber(),
+                                 configuration: bilingualConfiguration)
+        default:
+            AppleSpeechTranscriber()   // English (India)
+        }
+    }
+
+    nonisolated private static let bilingualConfiguration: BilingualArbiter.Configuration = {
         var configuration = BilingualArbiter.Configuration()
         configuration.primaryName = "Tamil"
         configuration.secondaryName = "English"
@@ -171,6 +181,11 @@ extension MacCaptionEngine {
             }
             transcripts.endSession(id, at: start.addingTimeInterval(Double(call.lines.count) * 6))
         }
-        return MacAppServices(captions: PreviewCaptionController(), transcripts: transcripts, corrections: corrections)
+        // Real recognisers on throwaway storage: a note opened in demo mode
+        // is transcribed but never touches the user's library.
+        let voiceNotes = VoiceNotes(recordingsFolder: transcripts.recordingsFolder, transcripts: transcripts,
+                                    languageID: { LanguageID.tamilAndEnglish }, makeTranscriber: makeTranscriber)
+        return MacAppServices(captions: PreviewCaptionController(), transcripts: transcripts, corrections: corrections,
+                              voiceNotes: voiceNotes)
     }
 }

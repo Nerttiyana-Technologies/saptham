@@ -5,8 +5,10 @@ import SwiftUI
 struct TranscriptReviewView: View {
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
+    @Binding var selectedSessionID: TranscriptSession.ID?
+    /// True while a session's lines are still arriving (a voice note being transcribed).
+    var isTranscribing: (TranscriptSession.ID) -> Bool = { _ in false }
     @AppStorage("captionTextSize") private var captionTextSize = 30.0
-    @State private var selectedSessionID: TranscriptSession.ID?
     @State private var query = ""
     @State private var pendingDeletion: TranscriptSession.ID?
     @State private var confirmsDeletion = false
@@ -56,7 +58,7 @@ struct TranscriptReviewView: View {
         } detail: {
             if let session = transcripts.sessions.first(where: { $0.id == selectedSessionID }) {
                 SessionDetailView(session: session, transcripts: transcripts, corrections: corrections,
-                                  textSize: min(captionTextSize, 28))
+                                  textSize: min(captionTextSize, 28), isTranscribing: isTranscribing(session.id))
             } else {
                 ContentUnavailableView("Choose a transcript", systemImage: "text.alignleft", description: Text("Select a session to review its captions."))
             }
@@ -140,6 +142,7 @@ private struct SessionRow: View {
         switch session.sourceID {
         case "calls": "phone.fill"
         case "microphone": "person.2.wave.2.fill"
+        case VoiceNotes.sourceID: "waveform"
         default: "speaker.wave.2.fill"
         }
     }
@@ -155,6 +158,7 @@ private struct SessionDetailView: View {
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
     let textSize: Double
+    var isTranscribing = false
     @State private var player = TranscriptAudioPlayer()
     @State private var selectedLineIDs = Set<TranscriptLine.ID>()
 
@@ -165,6 +169,14 @@ private struct SessionDetailView: View {
                     Text(session.sourceTitle).font(.title2.weight(.semibold))
                     Text(session.startedAt.formatted(date: .complete, time: .shortened))
                         .foregroundStyle(.glassSecondary)
+                    if isTranscribing {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Transcribing on this Mac…")
+                        }
+                        .foregroundStyle(.glassSecondary)
+                        .accessibilityElement(children: .combine)
+                    }
                 }
                 Spacer()
                 Button("Copy Selected Lines", systemImage: "doc.on.doc") { copySelectedLines() }
@@ -493,5 +505,6 @@ private func timeString(_ date: Date) -> String { date.formatted(date: .omitted,
 
 #Preview {
     let services = MacCaptionEngine.makePreviewServices()
-    TranscriptReviewView(transcripts: services.transcripts, corrections: services.corrections)
+    TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
+                      navigation: TranscriptNavigation(voiceNotes: services.voiceNotes))
 }
