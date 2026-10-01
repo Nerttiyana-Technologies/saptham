@@ -25,6 +25,7 @@ targets:
       - path: Apps/Mac
         excludes:
           - "Support/Info.plist"
+      - path: Apps/Shared
       # Tamil speech model from Tools/ModelBuild (git-ignored). Optional so
       # the app still builds without it; Tamil then reports itself missing.
       # Its licence notice is in Support/ThirdPartyNotices.txt, which ships.
@@ -56,3 +57,35 @@ targets:
         ENABLE_APP_SANDBOX: NO
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "5.0"
+  SapthamPhone:
+    type: application
+    platform: iOS
+    sources:
+      - path: Apps/iOS
+        excludes:
+          - "Support/Info.plist"
+      - path: Apps/Shared
+      # One notices file for both apps: Tools/Notices writes it under
+      # Apps/Mac/Support and it ships in each app from there.
+      - path: Apps/Mac/Support/ThirdPartyNotices.txt
+        buildPhase: resources
+      # Tamil speech model, as for the Mac app (optional, git-ignored).
+      - path: Models/TamilSpeech.mlpackage
+        optional: true
+      - path: Models/TamilSpeech.json
+        optional: true
+        buildPhase: resources
+    dependencies:
+      - package: SapthamKit
+        product: SapthamCore
+    settings:
+      base:
+        PRODUCT_NAME: Saptham
+        PRODUCT_BUNDLE_IDENTIFIER: com.nerttiyana.saptham
+        INFOPLIST_FILE: Apps/iOS/Support/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        COREML_CODEGEN_LANGUAGE: None
+        SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
