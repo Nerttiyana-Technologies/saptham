@@ -72,3 +72,8 @@ Saptham.xcodeproj/
 # Speech models built by Tools/ModelBuild (hundreds of MB; rebuilt, never committed)
 /Models/
 __pycache__/
+
+# Private, never pushed (owner direction 2026-10-01): experiment programs,
+# build and test scripts, test data. Only the product's source goes to GitHub.
+/Spikes/
+/Tools/
