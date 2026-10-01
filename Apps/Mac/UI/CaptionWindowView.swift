@@ -38,6 +38,11 @@ struct CaptionWindowView: View {
                         .padding(.bottom, 10)
                 }
 
+                if controller.feed.soundScene.isMusical {
+                    musicNotice
+                        .padding(.bottom, 10)
+                }
+
                 captionScrollView
             }
             .padding(22)
@@ -170,6 +175,21 @@ struct CaptionWindowView: View {
                 .foregroundStyle(.orange)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Shown while music or singing is playing. Speech recognisers cannot
+    /// follow singing, so "unclear" lines are held back meanwhile (see
+    /// CaptionFeed.soundScene); words the recogniser is sure of still appear.
+    private var musicNotice: some View {
+        Label {
+            Text(controller.feed.soundScene == .singing ? "♪ Music: singing" : "♪ Music")
+                .font(.system(size: max(16, textSize * 0.7), weight: .semibold, design: .rounded))
+        } icon: {
+            Image(systemName: "music.note")
+                .foregroundStyle(.tint)
+        }
+        .labelStyle(.titleOnly)
+        .accessibilityLabel(controller.feed.soundScene == .singing ? "Music with singing is playing" : "Music is playing")
     }
 
     private var windowStatus: String {

@@ -42,6 +42,10 @@ public final class CaptionFeed {
     /// True while the captured sound is playing but mostly missing (see
     /// BrokenAudioDetector); captions cannot work until that changes.
     public private(set) var isAudioBrokenUp = false
+    /// What kind of sound is playing (see SoundSceneDetecting). While it is
+    /// music or singing, "unclear" lines are not added: a song would
+    /// otherwise fill the screen with them.
+    public private(set) var soundScene: SoundScene = .speech
 
     @ObservationIgnored private var silenceTimer: Task<Void, Never>?
     private static let silenceAfter: Duration = .milliseconds(1_500)
@@ -58,11 +62,12 @@ public final class CaptionFeed {
     public func apply(_ update: TranscriptUpdate, at time: Date = Date()) {
         switch update {
         case .volatile(let text):
-            partial = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            partial = isHidden(words) ? "" : words
         case .final(let text, _, _):
             partial = ""
             let settled = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !settled.isEmpty else { return }
+            guard !settled.isEmpty, !isHidden(settled) else { return }
             lines.append(CaptionLine(text: settled, time: time))
             if lines.count > maxLines { lines.removeFirst(lines.count - maxLines) }
         }
@@ -74,7 +79,24 @@ public final class CaptionFeed {
         if state != .listening {
             markSilent()
             isAudioBrokenUp = false
+            soundScene = .speech
         }
+    }
+
+    /// When music starts, the "unclear" lines written while the detector was
+    /// still making up its mind (a second or two) are taken back off the end.
+    /// Ignored unless listening, so a verdict that arrives after stopping
+    /// cannot leave a stale notice up.
+    public func setSoundScene(_ scene: SoundScene) {
+        guard state == .listening else { return }
+        soundScene = scene
+        guard scene.isMusical else { return }
+        while let last = lines.last, last.text == TranscriptUpdate.unclearText { lines.removeLast() }
+        if isHidden(partial) { partial = "" }
+    }
+
+    private func isHidden(_ text: String) -> Bool {
+        soundScene.isMusical && text == TranscriptUpdate.unclearText
     }
 
     public func setAudioBrokenUp(_ brokenUp: Bool) {

@@ -9,6 +9,8 @@ import Observation
 /// - `transcripts` receives every settled line (for saved transcripts).
 /// - `correctText` rewrites caption text before it is shown (user corrections).
 /// - `makeRecorder` returns a recorder when the user has turned recording on.
+/// - `makeSceneDetector` returns a music/singing detector; its verdicts go
+///   to the feed only, so saved transcripts keep everything the recogniser wrote.
 @MainActor
 @Observable
 public final class CaptionSession: CaptionControlling {
@@ -27,6 +29,7 @@ public final class CaptionSession: CaptionControlling {
     @ObservationIgnored private let languageChanged: (CaptionLanguageOption.ID) -> Void
     @ObservationIgnored private let makeRecorder: (CaptionSourceOption.ID) -> AudioRecording?
     @ObservationIgnored private let correctText: (String) -> String
+    @ObservationIgnored private let makeSceneDetector: () -> SoundSceneDetecting?
     @ObservationIgnored private weak var transcripts: TranscriptSink?
     @ObservationIgnored private var running: (source: AudioSource, task: Task<Void, Never>, recorder: AudioRecording?)?
     @ObservationIgnored private var conversation: (id: TranscriptSession.ID, lastLineAt: Date)?
@@ -47,7 +50,8 @@ public final class CaptionSession: CaptionControlling {
                 languageChanged: @escaping (CaptionLanguageOption.ID) -> Void = { _ in },
                 transcripts: TranscriptSink? = nil,
                 correctText: @escaping (String) -> String = { $0 },
-                makeRecorder: @escaping (CaptionSourceOption.ID) -> AudioRecording? = { _ in nil }) {
+                makeRecorder: @escaping (CaptionSourceOption.ID) -> AudioRecording? = { _ in nil },
+                makeSceneDetector: @escaping () -> SoundSceneDetecting? = { nil }) {
         precondition(!languages.isEmpty, "CaptionSession needs at least one language")
         self.sources = sources
         self.languages = languages
@@ -59,6 +63,7 @@ public final class CaptionSession: CaptionControlling {
         self.transcripts = transcripts
         self.correctText = correctText
         self.makeRecorder = makeRecorder
+        self.makeSceneDetector = makeSceneDetector
     }
 
     public func start(_ sourceID: CaptionSourceOption.ID) {
@@ -72,6 +77,7 @@ public final class CaptionSession: CaptionControlling {
         let transcriber = makeTranscriber(activeLanguageID)
         let languageID = activeLanguageID
         let recorder = makeRecorder(sourceID)
+        let sceneDetector = makeSceneDetector()
         let feed = self.feed
 
         let task = Task { @MainActor [weak self] in
@@ -84,6 +90,14 @@ public final class CaptionSession: CaptionControlling {
                 // Tamil model): 1,000 buffers is about 10 s of 10 ms buffers.
                 // Only the oldest audio is dropped if it ever overflows.
                 let (metered, meterFeed) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(1_000))
+                // The scene detector gets its own copy, so a slow classifier
+                // drops its oldest audio rather than delaying captions.
+                let (sceneAudio, sceneFeed) = AsyncStream<AVAudioPCMBuffer>.makeStream(bufferingPolicy: .bufferingNewest(200))
+                let sceneWatch = sceneDetector.map { detector in
+                    Task { @MainActor in
+                        for await scene in detector.scenes(in: sceneAudio) { feed.setSoundScene(scene) }
+                    }
+                }
                 // Tee: level meter and recorder on the way to the recogniser.
                 let pump = Task.detached {
                     var lastLevelAt = ContinuousClock.now
@@ -113,13 +127,16 @@ public final class CaptionSession: CaptionControlling {
                             lastLevelAt = .now
                         }
                         meterFeed.yield(buffer)
+                        if sceneDetector != nil { sceneFeed.yield(buffer) }
                     }
                     meterFeed.finish()
+                    sceneFeed.finish()
                 }
                 for try await update in transcriber.transcribe(metered) {
                     self?.handle(update, sourceID: sourceID, languageID: languageID, recordingFile: recorder?.fileName)
                 }
                 pump.cancel()
+                sceneWatch?.cancel()
                 if !Task.isCancelled { feed.setState(.idle) }
             } catch is CancellationError {
                 // stopped by the user

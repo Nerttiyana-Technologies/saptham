@@ -18,7 +18,35 @@ public protocol SpeechTranscribing: AnyObject {
     func transcribe(_ audio: AsyncStream<AVAudioPCMBuffer>) -> AsyncThrowingStream<TranscriptUpdate, Error>
 }
 
+/// Judges what kind of sound is playing, alongside the recogniser. Told
+/// nothing about the recogniser or the screen; it only reports changes.
+public protocol SoundSceneDetecting: AnyObject {
+    /// Yields the scene each time it changes. The stream finishes after the
+    /// audio stream finishes.
+    func scenes(in audio: AsyncStream<AVAudioPCMBuffer>) -> AsyncStream<SoundScene>
+}
+
+/// What kind of sound is playing, as far as captions are concerned.
+public enum SoundScene: Equatable, Sendable {
+    /// Talking, quiet, or anything that is not music: caption normally.
+    case speech
+    /// Music with no voice the recognisers can follow.
+    case music
+    /// Someone singing. Speech recognisers learned from talking, not
+    /// singing, so most of what they write here is guesswork.
+    case singing
+
+    /// True when captions from a speech recogniser cannot be trusted.
+    public var isMusical: Bool { self != .speech }
+}
+
 public enum TranscriptUpdate: Equatable, Sendable {
+    /// What a recogniser writes for speech it heard but could not make out.
+    /// Shared by agreement: CTCLiveDecoder writes it, and CaptionFeed hides
+    /// it while music is playing. A recogniser that writes other text for
+    /// the same thing is simply never hidden.
+    public static let unclearText = "(unclear)"
+
     /// Provisional words for the sentence in progress; replaced by the next update.
     case volatile(String)
     /// A settled sentence, with where it lies in the audio stream and how

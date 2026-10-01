@@ -54,7 +54,7 @@ public struct CTCLiveDecoder {
         /// Untrusted text with fewer pieces than this is dropped; longer
         /// untrusted text becomes `unclearText`.
         public var unclearMinimumPieces = 4
-        public var unclearText = "(unclear)"
+        public var unclearText = TranscriptUpdate.unclearText
 
         public init() {}
 

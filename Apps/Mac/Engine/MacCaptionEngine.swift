@@ -97,7 +97,10 @@ enum MacCaptionEngine {
                 guard id == SourceID.calls, SapthamSettings.recordCallsValue else { return nil }
                 return FileAudioRecorder(folder: transcripts.recordingsFolder,
                                          fileName: "call-\(fileStamp.string(from: Date())).m4a")
-            })
+            },
+            // Every source: songs reach calls (hold music) and the
+            // microphone as well as "Everything playing".
+            makeSceneDetector: { SoundSceneDetector() })
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections)
     }
 
