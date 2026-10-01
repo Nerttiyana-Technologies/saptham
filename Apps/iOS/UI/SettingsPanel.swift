@@ -58,15 +58,27 @@ struct SettingsPanel: View {
     private var soundGroup: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 14) {
+                // The whole row is the switch: the ear, the title and the
+                // state all toggle it (the ear alone was too small a target
+                // to find, 2026-10-02).
                 Button { alertsOn.toggle() } label: {
-                    LitGlyph(systemImage: "ear", isLit: alertsOn, size: 38)
+                    HStack(alignment: .center, spacing: 14) {
+                        LitGlyph(systemImage: "ear", isLit: alertsOn, size: 38)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Sound alerts").font(.headline).foregroundStyle(Monsoon.ink)
+                            Text(alertsOn ? "On · listening" : "Off · tap to turn on")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(alertsOn ? Monsoon.accent : Monsoon.ink3)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.glyph).accessibilityLabel(alertsOn ? "Turn sound alerts off" : "Turn sound alerts on")
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Sound alerts").font(.headline).foregroundStyle(Monsoon.ink)
-                    Text(alertsOn ? "Listening" : "Off").font(.caption).foregroundStyle(Monsoon.ink3)
-                }
-                Spacer(minLength: 0)
+                .buttonStyle(.glyph)
+                .sensoryFeedback(.selection, trigger: alertsOn)
+                .accessibilityLabel("Sound alerts")
+                .accessibilityValue(alertsOn ? "On" : "Off")
+                .accessibilityHint("Double-tap to turn \(alertsOn ? "off" : "on")")
                 Button { services.alerts.showTest() } label: {
                     Image(systemName: "bell.badge").foregroundStyle(Monsoon.ink3)
                 }
