@@ -57,6 +57,7 @@ targets:
         ENABLE_APP_SANDBOX: NO
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "5.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   SapthamPhone:
     type: application
     platform: iOS
