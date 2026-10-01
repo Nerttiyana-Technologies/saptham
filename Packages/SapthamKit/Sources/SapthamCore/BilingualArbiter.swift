@@ -19,6 +19,12 @@ import Foundation
 /// cover most of the group, otherwise the primary's. Provisional words
 /// follow whichever recogniser won the latest group.
 ///
+/// A whole English sentence the secondary is very sure of is decided the
+/// moment it arrives (`earlyConfidence`, `earlyWords`): otherwise the
+/// primary's Tamil-script guess stayed on screen for seconds before the
+/// English replaced it (seen on iPhone 2026-10-02, "Hi, how are you").
+/// Single sure words still wait, so they cannot cut into a Tamil sentence.
+///
 /// Pure logic with no audio, recognisers or clock of its own, so it can be
 /// tested with made-up lines and times.
 public struct BilingualArbiter {
@@ -30,6 +36,10 @@ public struct BilingualArbiter {
         /// Share of the group's audio the secondary lines must cover to win,
         /// so one confident English word does not replace a Tamil sentence.
         public var secondaryCoverage = 0.5
+        /// A secondary line this sure, with at least `earlyWords` words, is
+        /// decided at once instead of waiting for the group to settle.
+        public var earlyConfidence = 0.85
+        public var earlyWords = 3
         /// Seconds to wait for more lines before deciding a group.
         public var settleAfter: TimeInterval = 2.0
         /// Lines this close in the audio count as overlapping.
@@ -48,6 +58,8 @@ public struct BilingualArbiter {
         let span: AudioSpan
         let confidence: Double?
         let arrived: Date
+        /// A sure, sentence-length secondary line: its group need not wait.
+        let decisive: Bool
     }
 
     public let configuration: Configuration
@@ -82,7 +94,11 @@ public struct BilingualArbiter {
             reached[side] = max(reached[side] ?? -.infinity, span.end)
             // Mostly inside audio already decided: the other side's line won.
             if span.end - max(span.start, decidedUpTo) < (span.end - span.start) / 2 { return decide(at: now) }
-            pending.append(Line(id: nextID, side: side, text: text, span: span, confidence: confidence, arrived: now))
+            let decisive = side == .secondary
+                && (confidence ?? 0) >= configuration.earlyConfidence
+                && text.split(whereSeparator: { $0.isWhitespace }).count >= configuration.earlyWords
+            pending.append(Line(id: nextID, side: side, text: text, span: span, confidence: confidence, arrived: now,
+                                decisive: decisive))
             nextID += 1
             return decide(at: now)
         }
@@ -128,7 +144,7 @@ public struct BilingualArbiter {
         let end = group.map(\.span.end).max()!
         let bothMovedOn = [Side.primary, .secondary].allSatisfy { (reached[$0] ?? -.infinity) > end + configuration.tolerance }
         let quiet = now.timeIntervalSince(group.map(\.arrived).max()!) >= configuration.settleAfter
-        return bothMovedOn || quiet
+        return bothMovedOn || quiet || group.contains(where: \.decisive)
     }
 
     private mutating func choose(_ group: [Line]) -> [TranscriptUpdate] {

@@ -100,23 +100,33 @@ public final class CoreMLCTCModel: CTCWindowModel {
 /// Live captions from a CTC window model: the model hears the latest
 /// window of audio every `hopSeconds`, and CTCLiveDecoder turns its guesses
 /// into provisional and settled lines. Audio never leaves the device.
+///
+/// With `skipsSilence`, the model is not run while SpeechGate hears no
+/// speech; the decoder is told those hops were silent (all blank), so line
+/// timing and settling are unchanged. The window still holds the last 8 s,
+/// so the first word after a silence is heard in full.
 public final class WindowedCTCTranscriber: SpeechTranscribing {
     private let loadModel: @Sendable () throws -> CTCWindowModel
     private let hopSeconds: Double
+    private let skipsSilence: Bool
 
     /// - Parameter loadModel: called once per run, off the main thread.
-    public init(hopSeconds: Double = 0.32, loadModel: @escaping @Sendable () throws -> CTCWindowModel) {
+    public init(hopSeconds: Double = 0.32, skipsSilence: Bool = true,
+                loadModel: @escaping @Sendable () throws -> CTCWindowModel) {
         self.hopSeconds = hopSeconds
+        self.skipsSilence = skipsSilence
         self.loadModel = loadModel
     }
 
     public func transcribe(_ audio: AsyncStream<AVAudioPCMBuffer>) -> AsyncThrowingStream<TranscriptUpdate, Error> {
         let loadModel = self.loadModel
         let hopSeconds = self.hopSeconds
+        let skipsSilence = self.skipsSilence
         return AsyncThrowingStream { continuation in
             let work = Task.detached(priority: .userInitiated) {
                 do {
-                    try await Self.run(audio: audio, model: try loadModel(), hopSeconds: hopSeconds) { continuation.yield($0) }
+                    try await Self.run(audio: audio, model: try loadModel(), hopSeconds: hopSeconds,
+                                       skipsSilence: skipsSilence) { continuation.yield($0) }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -127,7 +137,7 @@ public final class WindowedCTCTranscriber: SpeechTranscribing {
     }
 
     private static func run(audio: AsyncStream<AVAudioPCMBuffer>, model: CTCWindowModel, hopSeconds: Double,
-                            emit: @escaping (TranscriptUpdate) -> Void) async throws {
+                            skipsSilence: Bool, emit: @escaping (TranscriptUpdate) -> Void) async throws {
         guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: model.sampleRate,
                                          channels: 1, interleaved: false) else {
             throw SapthamError("Cannot describe the speech model's audio format.")
@@ -149,6 +159,9 @@ public final class WindowedCTCTranscriber: SpeechTranscribing {
         var received = 0          // samples of the stream seen so far
         var converter: AudioFormatConverter?
         let latency = LatencyMeter()
+        var gate = SpeechGate()
+        let silentFrames = [CTCFrame](repeating: CTCFrame(id: model.blank, probability: 1), count: frameCount)
+        var skippedHops = 0
 
         for await buffer in audio {
             if Task.isCancelled { break }
@@ -160,6 +173,18 @@ public final class WindowedCTCTranscriber: SpeechTranscribing {
                 window.append(contentsOf: pending.prefix(hop))
                 pending.removeFirst(hop)
                 received += hop
+                let hopRMS = Self.rms(window.suffix(hop))
+                if skipsSilence, !gate.add(rms: hopRMS, seconds: Double(hop) / model.sampleRate) {
+                    // Silence: say so to the decoder without running the model.
+                    skippedHops += 1
+                    let firstFrame = (received - windowSamples) / model.frameSamples
+                    decoder.consume(frames: silentFrames, firstFrame: firstFrame).forEach(emit)
+                    continue
+                }
+                if skippedHops > 0 {
+                    Diagnostics.engine.debug("Tamil recogniser skipped \(skippedHops, privacy: .public) silent hops")
+                    skippedHops = 0
+                }
                 latency.audioFed(upTo: Double(received) / model.sampleRate)
                 let pieces = try model.bestPieces(window: window)
                 // Frame 0 of the window lies this many frames into the stream
@@ -174,5 +199,10 @@ public final class WindowedCTCTranscriber: SpeechTranscribing {
         if !Task.isCancelled {
             decoder.finish().forEach(emit)
         }
+    }
+
+    private static func rms(_ samples: ArraySlice<Float>) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        return (samples.reduce(0) { $0 + $1 * $1 } / Float(samples.count)).squareRoot()
     }
 }

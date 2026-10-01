@@ -84,6 +84,7 @@ public final class CaptionSession: CaptionControlling {
         let recorder = makeRecorder(sourceID)
         let sceneDetector = makeSceneDetector()
         let feed = self.feed
+        let loudness = LoudnessTracker()
 
         let task = Task { @MainActor [weak self] in
             do {
@@ -122,6 +123,9 @@ public final class CaptionSession: CaptionControlling {
                             Task { @MainActor in feed.setAudioBrokenUp(brokenUp) }
                         }
                         recorder?.write(buffer)
+                        // Same buffers, same order as the recogniser gets, so
+                        // the tracker's clock matches the recogniser's AudioSpans.
+                        loudness.add(buffer)
                         peak = max(peak, buffer.peakLevel)
                         if ContinuousClock.now - lastLevelAt > .milliseconds(100) {
                             let level = peak
@@ -138,7 +142,8 @@ public final class CaptionSession: CaptionControlling {
                     sceneFeed.finish()
                 }
                 for try await update in transcriber.transcribe(metered) {
-                    self?.handle(update, sourceID: sourceID, languageID: languageID, recordingFile: recorder?.fileName)
+                    self?.handle(update, sourceID: sourceID, languageID: languageID, recordingFile: recorder?.fileName,
+                                 loudness: loudness)
                 }
                 pump.cancel()
                 sceneWatch?.cancel()
@@ -177,7 +182,7 @@ public final class CaptionSession: CaptionControlling {
     }
 
     private func handle(_ update: TranscriptUpdate, sourceID: CaptionSourceOption.ID,
-                        languageID: CaptionLanguageOption.ID, recordingFile: String?) {
+                        languageID: CaptionLanguageOption.ID, recordingFile: String?, loudness: LoudnessTracker) {
         switch update {
         case .volatile(let text):
             let shown = correctText(text)
@@ -185,7 +190,7 @@ public final class CaptionSession: CaptionControlling {
             lineHeard(shown, sourceID)
         case .final(let text, let audio, let score):
             let shown = correctText(text)
-            feed.apply(.final(shown, audio: audio))
+            feed.apply(.final(shown, audio: audio), tone: audio.map(loudness.tone(for:)) ?? .normal)
             lineHeard(shown, sourceID)
             record(text, audio: audio, score: score, sourceID: sourceID, languageID: languageID, recordingFile: recordingFile)
         }

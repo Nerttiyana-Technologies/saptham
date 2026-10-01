@@ -17,13 +17,17 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
     private let locale: Locale
     private let model: Model
     private let vocabulary: [String]
+    /// Let the recogniser skip silence (Apple's SpeechDetector) to save power.
+    private let skipsSilence: Bool
 
     /// - Parameter vocabulary: words and phrases the speaker is likely to say
     ///   (names, places, jargon). Only the dictation model uses them.
-    public init(locale: Locale = Locale(identifier: "en-IN"), model: Model = .speech, vocabulary: [String] = []) {
+    public init(locale: Locale = Locale(identifier: "en-IN"), model: Model = .speech, vocabulary: [String] = [],
+                skipsSilence: Bool = true) {
         self.locale = locale
         self.model = model
         self.vocabulary = vocabulary
+        self.skipsSilence = skipsSilence
     }
 
     public func transcribe(_ audio: AsyncStream<AVAudioPCMBuffer>) -> AsyncThrowingStream<TranscriptUpdate, Error> {
@@ -49,7 +53,11 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
         }
         Diagnostics.engine.info("speech permission status \(status.rawValue, privacy: .public)")
         guard status == .authorized else {
+            #if os(iOS)
+            throw SapthamError("Speech recognition is off. Turn it on in Settings → Apps → Saptham.")
+            #else
             throw SapthamError("Speech recognition is off. Turn it on in System Settings → Privacy & Security → Speech Recognition.")
+            #endif
         }
     }
 
@@ -105,11 +113,18 @@ public final class AppleSpeechTranscriber: SpeechTranscribing {
                      emit: @escaping (TranscriptUpdate) -> Void) async throws {
         try await Self.requireSpeechPermission()
         let recogniser = try await makeRecogniser()
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [recogniser.module]) {
+        // Apple's speech detector lets the recogniser skip stretches with no
+        // speech, keeping the audio's timeline intact. (Leaving silence out
+        // of the input instead stopped all results after the first gap,
+        // macOS 27.0.1, 2026-10-02.)
+        let modules: [any SpeechModule] = skipsSilence
+            ? [recogniser.module, SpeechDetector(detectionOptions: .init(sensitivityLevel: .medium), reportResults: false)]
+            : [recogniser.module]
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
             try await request.downloadAndInstall()
         }
-        let analyzer = SpeechAnalyzer(modules: [recogniser.module])
-        guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [recogniser.module]) else {
+        let analyzer = SpeechAnalyzer(modules: modules)
+        guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: modules) else {
             throw SapthamError("The speech recogniser offered no audio format.")
         }
 

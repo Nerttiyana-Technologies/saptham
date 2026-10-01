@@ -6,11 +6,14 @@ public struct CaptionLine: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let text: String
     public let time: Date
+    /// How it was said (loudness against the room's usual level).
+    public let tone: SpeechTone
 
-    public init(id: UUID = UUID(), text: String, time: Date = Date()) {
+    public init(id: UUID = UUID(), text: String, time: Date = Date(), tone: SpeechTone = .normal) {
         self.id = id
         self.text = text
         self.time = time
+        self.tone = tone
     }
 }
 
@@ -59,7 +62,7 @@ public final class CaptionFeed {
         self.maxLines = maxLines
     }
 
-    public func apply(_ update: TranscriptUpdate, at time: Date = Date()) {
+    public func apply(_ update: TranscriptUpdate, tone: SpeechTone = .normal, at time: Date = Date()) {
         switch update {
         case .volatile(let text):
             let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -68,7 +71,7 @@ public final class CaptionFeed {
             partial = ""
             let settled = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !settled.isEmpty, !isHidden(settled) else { return }
-            lines.append(CaptionLine(text: settled, time: time))
+            lines.append(CaptionLine(text: settled, time: time, tone: tone))
             if lines.count > maxLines { lines.removeFirst(lines.count - maxLines) }
         }
         lastSpeechAt = time

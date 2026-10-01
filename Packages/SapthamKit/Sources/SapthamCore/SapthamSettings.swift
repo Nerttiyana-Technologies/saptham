@@ -31,8 +31,8 @@ public enum SapthamSettings {
     /// engine when the user switches; read once at launch.
     public static let captionLanguage = "captionLanguage"
     /// Tamil + English: most conversations mix the two.
-    /// Coupled to MacCaptionEngine.LanguageID.tamilAndEnglish, which the app
-    /// defines: the ids are only equal by agreement. If they drift apart,
+    /// Coupled to CaptionRecognisers.LanguageID.tamilAndEnglish, which the apps
+    /// define: the ids are only equal by agreement. If they drift apart,
     /// CaptionSession quietly falls back to the app's first language.
     public static let captionLanguageDefault = "ta+en"
 

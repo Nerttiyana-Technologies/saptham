@@ -19,12 +19,30 @@ struct BilingualArbiterTests {
 
     @Test func sureEnglishReplacesTamilScript() {
         var arbiter = BilingualArbiter()
-        #expect(arbiter.add(line("Can you send me the invoice?", 0, 3, 0.99), from: .secondary, at: at(4)).isEmpty)
-        #expect(arbiter.add(line("யூ ஸேண்ட் மீ தே இன் வோஈஸ்", 0.28, 4.56, 0.87), from: .primary, at: at(6)).isEmpty)
-        #expect(arbiter.add(line("I need it for the audit.", 3.06, 4.86, 0.98), from: .secondary, at: at(6)).isEmpty)
-        let shown = arbiter.tick(at: at(8.1))
+        // Sure, whole English sentences are shown as they arrive; the
+        // Tamil-script guess for the same audio is then dropped.
+        var shown = arbiter.add(line("Can you send me the invoice?", 0, 3, 0.99), from: .secondary, at: at(4))
+        shown += arbiter.add(line("யூ ஸேண்ட் மீ தே இன் வோஈஸ்", 0.28, 4.56, 0.87), from: .primary, at: at(6))
+        shown += arbiter.add(line("I need it for the audit.", 3.06, 4.86, 0.98), from: .secondary, at: at(6))
+        shown += arbiter.tick(at: at(8.1))
         #expect(texts(shown) == ["Can you send me the invoice?", "I need it for the audit."])
         #expect(arbiter.showing == .secondary)
+    }
+
+    @Test func sureEnglishSentenceIsShownAtOnce() {
+        var arbiter = BilingualArbiter()
+        let shown = arbiter.add(line("Hi, how are you?", 0, 1.2, 0.97), from: .secondary, at: at(1.4))
+        #expect(texts(shown) == ["Hi, how are you?"])
+        #expect(arbiter.showing == .secondary)
+        // The Tamil model's version of the same words, arriving later, is not shown.
+        #expect(texts(arbiter.add(line("ஹாய் ஹவ் ஆர் யூ", 0.05, 1.25, 0.88), from: .primary, at: at(2))).isEmpty)
+        #expect(texts(arbiter.tick(at: at(5))).isEmpty)
+    }
+
+    @Test func shortSureEnglishStillWaits() {
+        var arbiter = BilingualArbiter()
+        #expect(arbiter.add(line("Thank you.", 0, 0.8, 0.98), from: .secondary, at: at(1)).isEmpty)
+        #expect(texts(arbiter.tick(at: at(3.1))) == ["Thank you."])
     }
 
     @Test func tamilStaysWhenEnglishIsUnsure() {
@@ -63,14 +81,14 @@ struct BilingualArbiterTests {
         var arbiter = BilingualArbiter()
         _ = arbiter.add(line("Murray, pay you", 0, 2, 0.25), from: .secondary, at: at(2))
         #expect(texts(arbiter.tick(at: at(4.5))).isEmpty)
-        _ = arbiter.add(line("Thank you so much.", 5, 6, 0.97), from: .secondary, at: at(7))
-        #expect(texts(arbiter.tick(at: at(9.5))) == ["Thank you so much."])
+        let shown = arbiter.add(line("Thank you so much.", 5, 6, 0.97), from: .secondary, at: at(7))
+        #expect(texts(shown + arbiter.tick(at: at(9.5))) == ["Thank you so much."])
     }
 
     @Test func aLateLineInsideDecidedAudioIsNotShownTwice() {
         var arbiter = BilingualArbiter()
-        _ = arbiter.add(line("Please call the doctor.", 0, 3, 0.99), from: .secondary, at: at(3))
-        #expect(texts(arbiter.tick(at: at(5.5))) == ["Please call the doctor."])
+        let shown = arbiter.add(line("Please call the doctor.", 0, 3, 0.99), from: .secondary, at: at(3))
+        #expect(texts(shown + arbiter.tick(at: at(5.5))) == ["Please call the doctor."])
         _ = arbiter.add(line("ப்ளீஸ் கால் த டாக்டர்", 0.1, 2.9, 0.84), from: .primary, at: at(6))
         #expect(texts(arbiter.finish()).isEmpty)
     }
