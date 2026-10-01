@@ -65,6 +65,10 @@ targets:
       - path: Apps/iOS
         excludes:
           - "Support/Info.plist"
+          # The Live Activity's drawing lives in the widget extension only;
+          # its data type (CaptionActivityAttributes) is in both.
+          - "LiveActivity/CaptionLiveActivityWidget.swift"
+          - "LiveActivity/Info.plist"
       - path: Apps/Shared
       # One notices file for both apps: Tools/Notices writes it under
       # Apps/Mac/Support and it ships in each app from there.
@@ -79,6 +83,8 @@ targets:
     dependencies:
       - package: SapthamKit
         product: SapthamCore
+      - target: SapthamLiveActivity
+        embed: true
     settings:
       base:
         PRODUCT_NAME: Saptham
@@ -90,3 +96,23 @@ targets:
         COREML_CODEGEN_LANGUAGE: None
         SWIFT_VERSION: "5.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  # Live captions on the Lock Screen and in the Dynamic Island. Draws only;
+  # the app starts and updates the activity (LiveActivityController).
+  SapthamLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Apps/iOS/LiveActivity
+        excludes:
+          - "Info.plist"
+      - path: Apps/iOS/UI/Monsoon.swift
+    settings:
+      base:
+        PRODUCT_NAME: SapthamLiveActivity
+        PRODUCT_BUNDLE_IDENTIFIER: com.nerttiyana.saptham.liveactivity
+        INFOPLIST_FILE: Apps/iOS/LiveActivity/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        SKIP_INSTALL: YES

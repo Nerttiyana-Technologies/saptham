@@ -9,6 +9,8 @@ struct SettingsPanel: View {
     @AppStorage(SapthamSettings.soundAlertKinds) private var alertKinds = SapthamSettings.soundAlertKindsDefault
     @AppStorage(SapthamSettings.alertNames) private var alertNames = SapthamSettings.alertNamesDefault
     @AppStorage(SapthamSettings.keepDays) private var keepDays = SapthamSettings.keepDaysDefault
+    @AppStorage(PhoneSettings.liveActivity) private var liveActivityOn = PhoneSettings.liveActivityDefault
+    @AppStorage(PhoneSettings.soundDirection) private var soundDirectionOn = PhoneSettings.soundDirectionDefault
     @State private var confirmsDeleteAll = false
     @State private var showsNotices = false
     @State private var editingRuleID: CorrectionRule.ID?
@@ -38,6 +40,12 @@ struct SettingsPanel: View {
                     correctionsGroup
                     LightRule().padding(.vertical, 18)
                     transcriptGroup
+                    LightRule().padding(.vertical, 18)
+                    liveActivityGroup
+                    LightRule().padding(.vertical, 18)
+                    batteryGroup
+                    LightRule().padding(.vertical, 18)
+                    directionGroup
                     LightRule().padding(.vertical, 18)
                     aboutGroup
                 }
@@ -242,6 +250,107 @@ struct SettingsPanel: View {
                 .font(.caption).foregroundStyle(Monsoon.ink3)
             Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")")
                 .font(.caption2).foregroundStyle(Monsoon.ink3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var liveActivityGroup: some View {
+        Button { liveActivityOn.toggle() } label: {
+            HStack(alignment: .center, spacing: 14) {
+                LitGlyph(systemImage: "lock.rectangle.on.rectangle", isLit: liveActivityOn, size: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Lock Screen captions").font(.headline).foregroundStyle(Monsoon.ink)
+                    Text(liveActivityOn ? "On" : "Off · tap to turn on")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(liveActivityOn ? Monsoon.accent : Monsoon.ink3)
+                }
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.glyph)
+        .sensoryFeedback(.selection, trigger: liveActivityOn)
+        .accessibilityLabel("Lock Screen captions")
+        .accessibilityValue(liveActivityOn ? "On" : "Off")
+        .accessibilityHint("Double-tap to turn \(liveActivityOn ? "off" : "on")")
+    }
+
+    private var batteryGroup: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "battery.75percent").font(.system(size: 22)).foregroundStyle(Monsoon.ink3)
+                    .accessibilityHidden(true)
+                if let newest = services.battery.readings.first {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(newest.percentPerHour, specifier: "%.1f") % per hour")
+                            .font(.system(size: 25, weight: .light)).foregroundStyle(Monsoon.ink)
+                        Text("last session · \(Int(newest.minutes.rounded())) min")
+                            .font(.caption).foregroundStyle(Monsoon.ink3)
+                    }
+                } else {
+                    Text("Caption for 10 minutes or more on battery to measure what Saptham uses.")
+                        .font(.caption).foregroundStyle(Monsoon.ink3)
+                }
+                Spacer(minLength: 0)
+            }
+            if services.battery.readings.count > 1 {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(services.battery.readings.dropFirst().prefix(4))) { reading in
+                        Text("\(reading.startedAt.formatted(.dateTime.day().month(.abbreviated))) · \(reading.percentPerHour, specifier: "%.1f") % per hour · \(Int(reading.minutes.rounded())) min")
+                            .font(.caption).foregroundStyle(Monsoon.ink3)
+                    }
+                }
+                .padding(.leading, 34)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Battery use")
+    }
+
+    private var directionGroup: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { soundDirectionOn.toggle() } label: {
+                HStack(alignment: .center, spacing: 14) {
+                    LitGlyph(systemImage: "ear.and.waveform", isLit: soundDirectionOn && services.direction.isAvailable, size: 34)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sound direction (experimental)").font(.headline).foregroundStyle(Monsoon.ink)
+                        Text(soundDirectionOn ? "On" : "Off · tap to turn on")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(soundDirectionOn ? Monsoon.accent : Monsoon.ink3)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.glyph)
+            .disabled(!services.direction.isAvailable)
+            .sensoryFeedback(.selection, trigger: soundDirectionOn)
+            .accessibilityLabel("Sound direction (experimental)")
+            .accessibilityValue(soundDirectionOn ? "On" : "Off")
+            .accessibilityHint(services.direction.isAvailable ? "Double-tap to turn \(soundDirectionOn ? "off" : "on")" : "Unavailable on this iPhone")
+
+            if !services.direction.isAvailable {
+                Text("This iPhone's microphone cannot tell left from right.")
+                    .font(.caption).foregroundStyle(Monsoon.ink3)
+            } else if soundDirectionOn {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Rectangle().fill(Monsoon.ink3).frame(height: 1)
+                        if let balance = services.direction.balance {
+                            Circle().fill(Monsoon.accent).frame(width: 9, height: 9)
+                                .monsoonGlow(radius: 6)
+                                .offset(x: CGFloat((balance + 1) / 2) * max(0, geometry.size.width - 9))
+                        }
+                    }
+                    .frame(height: 10)
+                    .frame(maxHeight: .infinity)
+                }
+                .frame(height: 12)
+                .accessibilityLabel("Live sound direction")
+                Text("Speak from one side to try it")
+                    .font(.caption).foregroundStyle(Monsoon.ink3)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -19,6 +19,8 @@ final class SharedMicrophone: @unchecked Sendable {
     /// Serialises starting, stopping and restarting the engine.
     private let control = NSLock()
     private var isRunning = false
+    /// Stereo capture for SoundDirection; see setStereo.
+    private var wantsStereo = false
     private var observers: [NSObjectProtocol] = []
 
     init() {
@@ -37,6 +39,25 @@ final class SharedMicrophone: @unchecked Sendable {
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    /// Whether the built-in microphone can capture in stereo on this iPhone.
+    static var supportsStereo: Bool {
+        AVAudioSession.sharedInstance().availableInputs?
+            .first { $0.portType == .builtInMic }?
+            .dataSources?.contains { $0.supportedPolarPatterns?.contains(.stereo) == true } ?? false
+    }
+
+    /// Captures in stereo (for SoundDirection) or mono. Restarts the
+    /// capture if it is running; every listener keeps its stream.
+    /// Coupled to SoundDirection by channel order (see there).
+    func setStereo(_ stereo: Bool) {
+        let changed = control.withLock { () -> Bool in
+            guard wantsStereo != stereo else { return false }
+            wantsStereo = stereo
+            return true
+        }
+        if changed { restart(reason: stereo ? "stereo on" : "stereo off") }
     }
 
     /// A new listener. Each `start()` on it joins the shared capture.
@@ -73,6 +94,7 @@ final class SharedMicrophone: @unchecked Sendable {
         try session.setCategory(.playAndRecord, mode: .measurement,
                                 options: [.allowBluetoothHFP, .mixWithOthers, .defaultToSpeaker])
         try session.setActive(true)
+        if wantsStereo { configureStereo(session) }
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -85,6 +107,21 @@ final class SharedMicrophone: @unchecked Sendable {
         try engine.start()
         isRunning = true
         Diagnostics.engine.info("shared microphone started: \(format.description, privacy: .public)")
+    }
+
+    /// Picks the built-in microphone's stereo pattern, left channel on the
+    /// user's left with the iPhone upright. Failing quietly leaves mono.
+    private func configureStereo(_ session: AVAudioSession) {
+        guard let builtIn = session.availableInputs?.first(where: { $0.portType == .builtInMic }),
+              let source = builtIn.dataSources?.first(where: { $0.supportedPolarPatterns?.contains(.stereo) == true }) else { return }
+        do {
+            try source.setPreferredPolarPattern(.stereo)
+            try builtIn.setPreferredDataSource(source)
+            try session.setPreferredInput(builtIn)
+            try session.setPreferredInputOrientation(.portrait)
+        } catch {
+            Diagnostics.engine.error("stereo capture unavailable: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// Runs on the audio thread for every captured buffer.

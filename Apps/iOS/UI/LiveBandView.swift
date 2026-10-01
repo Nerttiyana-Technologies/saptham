@@ -12,6 +12,8 @@ import SwiftUI
 /// strokes for settings · hold the band to keep it still · pinch to resize.
 struct LiveBandView: View {
     let captions: any CaptionControlling
+    /// Which side voices come from (experimental, off unless chosen).
+    var direction: SoundDirection? = nil
     let onEarlier: () -> Void
     let onSettings: () -> Void
 
@@ -130,6 +132,7 @@ struct LiveBandView: View {
             .offset(y: -22)
         }
         .monsoonBand()
+        .overlay { DirectionGlow(balance: direction?.balance) }
         .contentShape(Rectangle())
         .gesture(pushToStop)
         .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 40) {
@@ -302,6 +305,30 @@ private struct LanguageLetters: View {
         .sensoryFeedback(.selection, trigger: lit)
         .accessibilityLabel(label)
         .accessibilityValue(lit ? "On" : "Off")
+    }
+}
+
+/// Experimental: the band's edge on the side a voice comes from glows.
+private struct DirectionGlow: View {
+    let balance: Double?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            edge(strength: max(0, -(balance ?? 0)))
+            Spacer()
+            edge(strength: max(0, balance ?? 0))
+        }
+        .animation(.easeOut(duration: 0.3), value: balance)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func edge(strength: Double) -> some View {
+        Rectangle()
+            .fill(Monsoon.accent)
+            .frame(width: 5)
+            .opacity(strength)
+            .monsoonGlow(radius: 14)
     }
 }
 

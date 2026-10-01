@@ -6,6 +6,7 @@ import UIKit
 @MainActor
 struct SapthamPhoneApp: App {
     @State private var services: PhoneAppServices
+    @State private var liveActivity: LiveActivityController
 
     /// `--preview-captions`: scripted captions and sample transcripts, no
     /// microphone or real data (screenshots, demos).
@@ -14,7 +15,13 @@ struct SapthamPhoneApp: App {
     init() {
         let services = Self.isPreviewMode ? PhoneCaptionEngine.makePreviewServices() : PhoneCaptionEngine.makeServices()
         _services = State(initialValue: services)
-        if !Self.isPreviewMode { services.alerts.start() }
+        let liveActivity = LiveActivityController(captions: services.captions, alerts: services.alerts)
+        _liveActivity = State(initialValue: liveActivity)
+        if !Self.isPreviewMode {
+            services.alerts.start()
+            services.direction.start()
+            liveActivity.start()
+        }
         // Diagnostics: `--start` begins captioning at launch.
         if ProcessInfo.processInfo.arguments.contains("--start"), let source = services.captions.sources.first {
             services.captions.start(source.id)
@@ -71,8 +78,10 @@ struct RootView: View {
             if phase == .active { posture.start() } else { posture.stop() }
         }
         // Captions are read, not glanced at: keep the screen on while listening.
-        .onChange(of: services.captions.activeSourceID) { _, active in
+        .onChange(of: services.captions.activeSourceID) { old, active in
             UIApplication.shared.isIdleTimerDisabled = active != nil
+            if old == nil, active != nil { services.battery.captioningStarted() }
+            if old != nil, active == nil { services.battery.captioningStopped() }
         }
         // A sound file shared to Saptham (a chat app's voice message).
         .onOpenURL { url in
@@ -114,6 +123,7 @@ struct RootView: View {
                 .transition(.opacity)
         case .live:
             LiveBandView(captions: services.captions,
+                         direction: services.direction,
                          onEarlier: { go(.earlier) },
                          onSettings: { showsSettings = true })
                 .transition(.move(edge: .top).combined(with: .opacity))

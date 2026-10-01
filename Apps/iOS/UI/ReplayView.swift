@@ -21,6 +21,14 @@ struct ReplayView: View {
     @State private var pendingDelete = false
     @State private var player = TranscriptAudioPlayer()
     @State private var hapticLineID: TranscriptLine.ID?
+    @State private var askOpen = false
+    @State private var askQuestion = ""
+    @State private var assistantReadiness: ConversationAssistant.Readiness?
+    @State private var assistantBusy = false
+    @State private var assistantAnswer: ConversationAssistant.Answer?
+    @State private var assistantSummary: String?
+    @State private var assistantError: String?
+    @State private var assistantResultSessionID: TranscriptSession.ID?
 
     private var sessions: [TranscriptSession] { services.transcripts.sessions }
     private var session: TranscriptSession? { sessions.first { $0.id == selectedSessionID } }
@@ -75,6 +83,10 @@ struct ReplayView: View {
             if let selectedSession = sessions.first(where: { $0.id == id }),
                !selectedSession.lines.contains(where: { $0.id == selectedLineID }) {
                 selectedLineID = selectedSession.lines.first?.id
+            }
+            if askOpen, let selectedSession = sessions.first(where: { $0.id == id }) {
+                assistantReadiness = services.assistant.readiness(for: selectedSession.languageID)
+                assistantError = nil
             }
             player.stop()
         }
@@ -228,6 +240,7 @@ struct ReplayView: View {
 
     private func controls(_ session: TranscriptSession) -> some View {
         VStack(spacing: 4) {
+            if askOpen { askStrip(session) }
             if searchOpen {
                 HStack(spacing: 8) {
                     TextField("Find in conversations", text: $query)
@@ -264,6 +277,8 @@ struct ReplayView: View {
                     .buttonStyle(.glyph).accessibilityLabel("Find in conversations")
                 Button { fileImporterOpen = true } label: { Image(systemName: "waveform.badge.plus").foregroundStyle(Monsoon.ink3) }
                     .buttonStyle(.glyph).accessibilityLabel("Add voice note")
+                Button { openAsk(session) } label: { Image(systemName: "sparkles").foregroundStyle(askOpen ? Monsoon.accent : Monsoon.ink3).monsoonGlow(askOpen ? Monsoon.accent : .clear) }
+                    .buttonStyle(.glyph).accessibilityLabel("Ask about this conversation")
                 Menu {
                     Button("Copy conversation", systemImage: "doc.on.doc") { copy(session) }
                     ShareLink(item: conversationText(session)) { Label("Share", systemImage: "square.and.arrow.up") }
@@ -278,6 +293,131 @@ struct ReplayView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if let job = services.voiceNotes.jobs.first(where: { $0.id == session.id }), case .failed(let message) = job.status {
                 errorBanner(message)
+            }
+        }
+    }
+
+    private func askStrip(_ session: TranscriptSession) -> some View {
+        let readiness = assistantReadiness ?? services.assistant.readiness(for: session.languageID)
+        let unavailable: Bool = { if case .unavailable = readiness { true } else { false } }()
+        let limitedMessage: String? = { if case .limited(let message) = readiness { message } else { nil } }()
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("Ask — e.g. what time did they say?", text: $askQuestion)
+                    .font(.body).foregroundStyle(Monsoon.ink).tint(Monsoon.accent)
+                    .padding(.horizontal, 4).frame(minHeight: 44)
+                    .underlineField().disabled(unavailable || assistantBusy)
+                    .onSubmit { ask(session) }
+                Button { ask(session) } label: { Image(systemName: "arrow.up").foregroundStyle(Monsoon.accent) }
+                    .buttonStyle(.glyph).accessibilityLabel("Send question")
+                    .disabled(unavailable || assistantBusy || askQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button { summarise(session) } label: { Image(systemName: "text.alignleft").foregroundStyle(Monsoon.ink3) }
+                    .buttonStyle(.glyph).accessibilityLabel("Summarise")
+                    .disabled(unavailable || assistantBusy)
+                Button { closeAsk() } label: { Image(systemName: "xmark").foregroundStyle(Monsoon.ink3) }
+                    .buttonStyle(.glyph).accessibilityLabel("Close ask strip")
+            }
+            if let limitedMessage {
+                Text(limitedMessage).font(.caption).foregroundStyle(Monsoon.ink3)
+            } else if case .unavailable(let message) = readiness {
+                Text(message).font(.caption).foregroundStyle(Monsoon.ink3)
+            }
+            if assistantBusy {
+                ProgressView().tint(Monsoon.accent).frame(maxWidth: .infinity, alignment: .leading)
+            } else if let assistantError {
+                Text(assistantError).font(.caption).foregroundStyle(Monsoon.ink3)
+            } else if let assistantAnswer, assistantResultSessionID == session.id {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(assistantAnswer.text)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(assistantAnswer.text.count <= 24 ? Monsoon.accent : Monsoon.ink)
+                        .monsoonGlow(assistantAnswer.text.count <= 24 ? Monsoon.accent : .clear)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let sourceLineID = assistantAnswer.sourceLineID,
+                       let sourceLine = session.lines.first(where: { $0.id == sourceLineID }) {
+                        Text("from \(sourceLine.time.formatted(date: .omitted, time: .shortened))")
+                            .font(.caption).foregroundStyle(Monsoon.ink3)
+                    }
+                    assistantPrivacyMark
+                }
+            } else if let assistantSummary, assistantResultSessionID == session.id {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(assistantSummary).font(.system(size: 20)).foregroundStyle(Monsoon.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    assistantPrivacyMark
+                }
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .monsoonBand()
+    }
+
+    private var assistantPrivacyMark: some View {
+        Label("Answered on this iPhone", systemImage: "lock.fill")
+            .font(.caption2).foregroundStyle(Monsoon.ink3)
+            .accessibilityLabel("Answered on this iPhone")
+    }
+
+    private func openAsk(_ session: TranscriptSession) {
+        assistantReadiness = services.assistant.readiness(for: session.languageID)
+        assistantError = nil
+        assistantAnswer = nil
+        assistantSummary = nil
+        assistantResultSessionID = nil
+        askOpen.toggle()
+    }
+
+    private func closeAsk() {
+        askOpen = false
+        askQuestion = ""
+        assistantReadiness = nil
+        assistantAnswer = nil
+        assistantSummary = nil
+        assistantResultSessionID = nil
+        assistantError = nil
+    }
+
+    private func ask(_ session: TranscriptSession) {
+        let question = askQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !assistantBusy else { return }
+        assistantBusy = true
+        assistantError = nil
+        assistantAnswer = nil
+        assistantSummary = nil
+        assistantResultSessionID = nil
+        Task { @MainActor in
+            defer { assistantBusy = false }
+            do {
+                let answer = try await services.assistant.answer(question, in: session, corrector: services.corrections.corrector)
+                assistantResultSessionID = session.id
+                assistantAnswer = answer
+                if let sourceLineID = answer.sourceLineID,
+                   session.lines.contains(where: { $0.id == sourceLineID }) {
+                    selectedSessionID = session.id
+                    selectedLineID = sourceLineID
+                }
+            } catch {
+                assistantError = error.localizedDescription
+            }
+        }
+    }
+
+    private func summarise(_ session: TranscriptSession) {
+        guard !assistantBusy else { return }
+        assistantBusy = true
+        assistantError = nil
+        assistantAnswer = nil
+        assistantSummary = nil
+        assistantResultSessionID = nil
+        Task { @MainActor in
+            defer { assistantBusy = false }
+            do {
+                assistantSummary = try await services.assistant.summary(of: session, corrector: services.corrections.corrector)
+                assistantResultSessionID = session.id
+            } catch {
+                assistantError = error.localizedDescription
             }
         }
     }

@@ -10,6 +10,12 @@ struct PhoneAppServices {
     let corrections: CorrectionBook
     let voiceNotes: VoiceNotes
     let alerts: PhoneAlerts
+    /// Questions and summaries about saved conversations (on-device model).
+    let assistant: ConversationAssistant
+    /// Battery used per captioning session.
+    let battery: BatteryMeter
+    /// Which side voices come from (experimental; see PhoneSettings).
+    let direction: SoundDirection
 }
 
 /// Composition root for the iPhone app: the only place that knows which
@@ -61,7 +67,8 @@ enum PhoneCaptionEngine {
                                     languageID: { captions.activeLanguageID },
                                     makeTranscriber: CaptionRecognisers.makeTranscriber)
         return PhoneAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
-                                voiceNotes: voiceNotes, alerts: alerts)
+                                voiceNotes: voiceNotes, alerts: alerts, assistant: ConversationAssistant(),
+                                battery: BatteryMeter(), direction: SoundDirection(microphone: microphone))
     }
 
     /// Applies the "keep transcripts for" setting.
@@ -128,7 +135,10 @@ extension PhoneCaptionEngine {
             CaptionSourceOption(id: SourceID.conversation, title: "Conversation",
                                 detail: "People talking near this iPhone", systemImage: "person.2.wave.2.fill"),
         ])
+        let microphone = SharedMicrophone()
         return PhoneAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
-                                voiceNotes: voiceNotes, alerts: PhoneAlerts(microphone: SharedMicrophone()))
+                                voiceNotes: voiceNotes, alerts: PhoneAlerts(microphone: microphone),
+                                assistant: ConversationAssistant(), battery: BatteryMeter(),
+                                direction: SoundDirection(microphone: microphone))
     }
 }

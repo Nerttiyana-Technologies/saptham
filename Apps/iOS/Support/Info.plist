@@ -72,6 +72,11 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Live captions on the Lock Screen and in the Dynamic Island. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Saptham listens to people talking near you so it can show their words as captions, and for sounds such as the doorbell. Nothing leaves this iPhone.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
