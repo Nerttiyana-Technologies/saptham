@@ -25,6 +25,9 @@ public final class CaptionSession: CaptionControlling {
     /// A pause in settled speech longer than this starts a new transcript,
     /// so a day of "Phone calls" becomes one transcript per call.
     public var conversationGap: TimeInterval = 120
+    /// A source that should always deliver sound (a microphone) and has
+    /// delivered none for this long is restarted, at most once a minute.
+    public var restartAfterStall: TimeInterval = 10
 
     @ObservationIgnored private let makeSource: (CaptionSourceOption.ID) -> AudioSource?
     @ObservationIgnored private let makeTranscriber: (CaptionLanguageOption.ID) -> SpeechTranscribing
@@ -36,6 +39,8 @@ public final class CaptionSession: CaptionControlling {
     @ObservationIgnored private weak var transcripts: TranscriptSink?
     @ObservationIgnored private var running: (source: AudioSource, task: Task<Void, Never>, recorder: AudioRecording?)?
     @ObservationIgnored private var conversation: (id: TranscriptSession.ID, lastLineAt: Date)?
+    @ObservationIgnored private var watchdog: Task<Void, Never>?
+    @ObservationIgnored private var autoRestartedAt: Date?
 
     /// - Parameters:
     ///   - sources: the options the UI may offer.
@@ -85,6 +90,7 @@ public final class CaptionSession: CaptionControlling {
         let sceneDetector = makeSceneDetector()
         let feed = self.feed
         let loudness = LoudnessTracker()
+        let health = source.deliversContinuously ? CaptureHealth() : nil
 
         let task = Task { @MainActor [weak self] in
             do {
@@ -92,6 +98,7 @@ public final class CaptionSession: CaptionControlling {
                 let audio = try await source.start()
                 Diagnostics.engine.info("source \(sourceID, privacy: .public) started; listening")
                 feed.setState(.listening)
+                if let health { self?.watch(health, of: sourceID) }
                 // Holds audio while the recogniser loads (a few seconds for the
                 // Tamil model): 1,000 buffers is about 10 s of 10 ms buffers.
                 // Only the oldest audio is dropped if it ever overflows.
@@ -122,6 +129,7 @@ public final class CaptionSession: CaptionControlling {
                             Diagnostics.engine.info("captured audio broken up: \(brokenUp, privacy: .public) (\(block, privacy: .public))")
                             Task { @MainActor in feed.setAudioBrokenUp(brokenUp) }
                         }
+                        health?.received(peak: buffer.peakLevel)
                         recorder?.write(buffer)
                         // Same buffers, same order as the recogniser gets, so
                         // the tracker's clock matches the recogniser's AudioSpans.
@@ -160,6 +168,8 @@ public final class CaptionSession: CaptionControlling {
     }
 
     public func stop() {
+        watchdog?.cancel()
+        watchdog = nil
         guard let running else { return }
         self.running = nil
         running.source.stop()
@@ -179,6 +189,32 @@ public final class CaptionSession: CaptionControlling {
         activeLanguageID = languageID
         languageChanged(languageID)
         if let sourceID = activeSourceID { start(sourceID) }
+    }
+
+    /// Every 2 s: shows or clears the "no sound" warning, and restarts the
+    /// source once it has been silent `restartAfterStall` seconds (capture
+    /// that stops without a word must not look like a quiet room).
+    private func watch(_ health: CaptureHealth, of sourceID: CaptionSourceOption.ID) {
+        watchdog?.cancel()
+        let feed = self.feed
+        watchdog = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, let self else { return }
+                let since = health.stalledSince()
+                if (since != nil) != feed.isAudioStalled {
+                    feed.setAudioStalled(since != nil)
+                    Diagnostics.engine.error("\(sourceID, privacy: .public) capture \(since != nil ? "stalled: no sound arriving" : "recovered", privacy: .public)")
+                }
+                if let since, Date().timeIntervalSince(since) >= restartAfterStall,
+                   autoRestartedAt.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
+                    autoRestartedAt = Date()
+                    Diagnostics.engine.error("restarting \(sourceID, privacy: .public) after \(Int(Date().timeIntervalSince(since)), privacy: .public) s without sound")
+                    start(sourceID)
+                    return
+                }
+            }
+        }
     }
 
     private func handle(_ update: TranscriptUpdate, sourceID: CaptionSourceOption.ID,
@@ -223,6 +259,8 @@ public final class CaptionSession: CaptionControlling {
 
     private func finished(_ sourceID: CaptionSourceOption.ID) {
         guard activeSourceID == sourceID else { return }
+        watchdog?.cancel()
+        watchdog = nil
         running?.recorder?.finish()
         running = nil
         endConversation()

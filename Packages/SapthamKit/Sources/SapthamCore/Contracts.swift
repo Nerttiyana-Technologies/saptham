@@ -9,6 +9,14 @@ public protocol AudioSource: AnyObject {
     /// Starts capturing. The stream finishes when `stop()` is called.
     func start() async throws -> AsyncStream<AVAudioPCMBuffer>
     func stop()
+    /// True when audio should arrive all the time while capturing (a
+    /// microphone hears even a quiet room), so a gap means capture broke.
+    /// False for sources that are silent until something plays (calls).
+    var deliversContinuously: Bool { get }
+}
+
+extension AudioSource {
+    public var deliversContinuously: Bool { false }
 }
 
 /// Turns a stream of audio into caption updates.

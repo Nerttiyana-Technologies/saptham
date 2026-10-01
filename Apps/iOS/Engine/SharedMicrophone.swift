@@ -125,6 +125,8 @@ private final class Listener: AudioSource {
     private let microphone: SharedMicrophone
     private var id: UUID?
 
+    var deliversContinuously: Bool { true }
+
     init(microphone: SharedMicrophone) {
         self.microphone = microphone
     }

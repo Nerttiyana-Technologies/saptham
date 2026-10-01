@@ -33,6 +33,11 @@ struct CaptionWindowView: View {
                 }
                 .padding(.bottom, 12)
 
+                if controller.feed.isAudioStalled {
+                    stalledNotice
+                        .padding(.bottom, 10)
+                }
+
                 if controller.feed.isAudioBrokenUp {
                     brokenAudioNotice
                         .padding(.bottom, 10)
@@ -172,6 +177,20 @@ struct CaptionWindowView: View {
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Shown while the microphone has delivered no sound at all for a few
+    /// seconds (see CaptureHealth); Saptham restarts it by itself.
+    private var stalledNotice: some View {
+        Label {
+            Text("No sound is reaching Saptham from the microphone. Restarting it… If this stays, check System Settings → Sound → Input.")
+                .font(.system(size: 14, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "mic.slash.fill")
                 .foregroundStyle(.orange)
         }
         .accessibilityElement(children: .combine)

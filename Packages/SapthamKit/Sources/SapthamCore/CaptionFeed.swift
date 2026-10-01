@@ -45,6 +45,10 @@ public final class CaptionFeed {
     /// True while the captured sound is playing but mostly missing (see
     /// BrokenAudioDetector); captions cannot work until that changes.
     public private(set) var isAudioBrokenUp = false
+    /// True while a source that should always deliver sound (a microphone)
+    /// has delivered none, or only exact digital silence, for a while: the
+    /// capture has broken, not the room gone quiet. See CaptureHealth.
+    public private(set) var isAudioStalled = false
     /// What kind of sound is playing (see SoundSceneDetecting). While it is
     /// music or singing, "unclear" lines are not added: a song would
     /// otherwise fill the screen with them.
@@ -82,6 +86,7 @@ public final class CaptionFeed {
         if state != .listening {
             markSilent()
             isAudioBrokenUp = false
+            isAudioStalled = false
             soundScene = .speech
         }
     }
@@ -104,6 +109,10 @@ public final class CaptionFeed {
 
     public func setAudioBrokenUp(_ brokenUp: Bool) {
         isAudioBrokenUp = brokenUp
+    }
+
+    public func setAudioStalled(_ stalled: Bool) {
+        isAudioStalled = stalled
     }
 
     /// Called for each burst of captured audio. Silence is detected both by

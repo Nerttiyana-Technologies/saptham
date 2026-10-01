@@ -126,7 +126,8 @@ struct SapthamMacApp: App {
     }
 
     private var menuBarSymbol: String {
-        switch controller.feed.state {
+        if controller.feed.isAudioStalled { return "mic.slash" }
+        return switch controller.feed.state {
         case .failed:
             "exclamationmark.bubble.fill"
         case .listening:

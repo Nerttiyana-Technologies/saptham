@@ -153,6 +153,11 @@ struct LiveBandView: View {
                 .font(.system(size: textSize * 0.6, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
         default:
+            if feed.isAudioStalled {
+                Label("No sound from the microphone — restarting", systemImage: "mic.slash")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Monsoon.violet)
+            }
             if feed.soundScene.isMusical {
                 Image(systemName: feed.soundScene == .singing ? "music.mic" : "music.note")
                     .font(.system(size: textSize * 0.9))
