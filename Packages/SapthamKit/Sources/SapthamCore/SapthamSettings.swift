@@ -62,4 +62,13 @@ public enum SapthamSettings {
         let saved = UserDefaults.standard.string(forKey: soundAlertKinds) ?? soundAlertKindsDefault
         return Set(saved.split(separator: ",").map(String.init))
     }
+
+    /// The user's names and other spellings of them, comma-separated
+    /// ("Priya, பிரியா"). Empty turns name alerts off.
+    public static let alertNames = "alertNames"
+    public static let alertNamesDefault = ""
+
+    public static var alertNamesValue: String {
+        UserDefaults.standard.string(forKey: alertNames) ?? alertNamesDefault
+    }
 }

@@ -9,6 +9,7 @@ struct SapthamSettingsView: View {
     var alertsTurnedOn: () -> Void = {}
     @AppStorage(SapthamSettings.soundAlerts) private var alertsOn = SapthamSettings.soundAlertsDefault
     @AppStorage(SapthamSettings.soundAlertKinds) private var alertKinds = SapthamSettings.soundAlertKindsDefault
+    @AppStorage(SapthamSettings.alertNames) private var alertNames = SapthamSettings.alertNamesDefault
     @AppStorage(SapthamSettings.recordCalls) private var recordCalls = SapthamSettings.recordCallsDefault
     @AppStorage(SapthamSettings.autoCaptionCalls) private var autoCaptionCalls = SapthamSettings.autoCaptionCallsDefault
     @AppStorage(SapthamSettings.keepDays) private var keepDays = SapthamSettings.keepDaysDefault
@@ -48,6 +49,11 @@ struct SapthamSettingsView: View {
                     }
                 }
                 Button("Show a test alert", systemImage: "bell.badge") { soundAlerts.showTest() }
+            }
+            Section("Name alerts") {
+                TextField("Your names", text: $alertNames, prompt: Text("e.g. Priya, பிரியா, Amma"))
+                Text("While Saptham captions a conversation, it flashes the screen when someone says one of these. Separate them with commas, and add the Tamil spelling and any nickname people call you. Leave empty to turn name alerts off.")
+                    .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("Call recording") {
                 Toggle("Record phone calls", isOn: $recordCalls)

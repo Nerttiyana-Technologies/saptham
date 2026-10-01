@@ -32,6 +32,7 @@ struct SapthamMacApp: App {
         _alertPresenter = State(initialValue: alertPresenter)
         _soundAlerts = State(initialValue: soundAlerts)
         appDelegate.navigation = navigation
+        services.nameAlerts.onAlert = alertPresenter.present
         // Demo mode never opens the microphone.
         if !previewMode { soundAlerts.start() }
 

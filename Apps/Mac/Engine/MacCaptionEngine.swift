@@ -10,6 +10,8 @@ struct MacAppServices {
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
     let voiceNotes: VoiceNotes
+    /// The app sets `onAlert` once it can show alerts.
+    let nameAlerts: NameAlerts
 }
 
 /// Composition root for the Mac app: the only place that knows which audio
@@ -44,6 +46,8 @@ enum MacCaptionEngine {
             recordingsFolder: dataFolder.appendingPathComponent("Recordings", isDirectory: true))
         let corrections = CorrectionBook(fileURL: dataFolder.appendingPathComponent("corrections.json"))
         deleteExpired(from: transcripts)
+        // People in the room, not videos or callers: only "Conversation".
+        let nameAlerts = NameAlerts(sourceIDs: [SourceID.microphone], names: { SapthamSettings.alertNamesValue })
 
         let captions = CaptionSession(
             sources: [
@@ -88,13 +92,14 @@ enum MacCaptionEngine {
             },
             // Every source: songs reach calls (hold music) and the
             // microphone as well as "Everything playing".
-            makeSceneDetector: { SoundSceneDetector() })
+            makeSceneDetector: { SoundSceneDetector() },
+            lineHeard: { nameAlerts.hear($0, from: $1) })
         // Voice notes use whichever caption language is chosen when they arrive.
         let voiceNotes = VoiceNotes(recordingsFolder: transcripts.recordingsFolder, transcripts: transcripts,
                                     languageID: { captions.activeLanguageID },
                                     makeTranscriber: makeTranscriber)
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
-                              voiceNotes: voiceNotes)
+                              voiceNotes: voiceNotes, nameAlerts: nameAlerts)
     }
 
     /// A fresh recogniser for a caption language: live captions and voice
@@ -186,6 +191,6 @@ extension MacCaptionEngine {
         let voiceNotes = VoiceNotes(recordingsFolder: transcripts.recordingsFolder, transcripts: transcripts,
                                     languageID: { LanguageID.tamilAndEnglish }, makeTranscriber: makeTranscriber)
         return MacAppServices(captions: PreviewCaptionController(), transcripts: transcripts, corrections: corrections,
-                              voiceNotes: voiceNotes)
+                              voiceNotes: voiceNotes, nameAlerts: NameAlerts(sourceIDs: [], names: { "" }))
     }
 }

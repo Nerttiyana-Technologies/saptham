@@ -11,6 +11,8 @@ import Observation
 /// - `makeRecorder` returns a recorder when the user has turned recording on.
 /// - `makeSceneDetector` returns a music/singing detector; its verdicts go
 ///   to the feed only, so saved transcripts keep everything the recogniser wrote.
+/// - `lineHeard` is told each caption as shown (corrected), partial or
+///   settled, with its source: for watchers such as name alerts.
 @MainActor
 @Observable
 public final class CaptionSession: CaptionControlling {
@@ -30,6 +32,7 @@ public final class CaptionSession: CaptionControlling {
     @ObservationIgnored private let makeRecorder: (CaptionSourceOption.ID) -> AudioRecording?
     @ObservationIgnored private let correctText: (String) -> String
     @ObservationIgnored private let makeSceneDetector: () -> SoundSceneDetecting?
+    @ObservationIgnored private let lineHeard: (String, CaptionSourceOption.ID) -> Void
     @ObservationIgnored private weak var transcripts: TranscriptSink?
     @ObservationIgnored private var running: (source: AudioSource, task: Task<Void, Never>, recorder: AudioRecording?)?
     @ObservationIgnored private var conversation: (id: TranscriptSession.ID, lastLineAt: Date)?
@@ -51,7 +54,8 @@ public final class CaptionSession: CaptionControlling {
                 transcripts: TranscriptSink? = nil,
                 correctText: @escaping (String) -> String = { $0 },
                 makeRecorder: @escaping (CaptionSourceOption.ID) -> AudioRecording? = { _ in nil },
-                makeSceneDetector: @escaping () -> SoundSceneDetecting? = { nil }) {
+                makeSceneDetector: @escaping () -> SoundSceneDetecting? = { nil },
+                lineHeard: @escaping (String, CaptionSourceOption.ID) -> Void = { _, _ in }) {
         precondition(!languages.isEmpty, "CaptionSession needs at least one language")
         self.sources = sources
         self.languages = languages
@@ -64,6 +68,7 @@ public final class CaptionSession: CaptionControlling {
         self.correctText = correctText
         self.makeRecorder = makeRecorder
         self.makeSceneDetector = makeSceneDetector
+        self.lineHeard = lineHeard
     }
 
     public func start(_ sourceID: CaptionSourceOption.ID) {
@@ -175,9 +180,13 @@ public final class CaptionSession: CaptionControlling {
                         languageID: CaptionLanguageOption.ID, recordingFile: String?) {
         switch update {
         case .volatile(let text):
-            feed.apply(.volatile(correctText(text)))
+            let shown = correctText(text)
+            feed.apply(.volatile(shown))
+            lineHeard(shown, sourceID)
         case .final(let text, let audio, let score):
-            feed.apply(.final(correctText(text), audio: audio))
+            let shown = correctText(text)
+            feed.apply(.final(shown, audio: audio))
+            lineHeard(shown, sourceID)
             record(text, audio: audio, score: score, sourceID: sourceID, languageID: languageID, recordingFile: recordingFile)
         }
     }
