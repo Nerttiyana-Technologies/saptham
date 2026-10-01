@@ -43,7 +43,7 @@ struct NameAlertsTests {
         alerts.hear("Priya, come here.", from: "microphone", at: start.addingTimeInterval(1))   // same sentence, settled
         #expect(raised.map(\.kind.id) == ["name"])
 
-        alerts.hear("Priya!", from: "microphone", at: start.addingTimeInterval(25))
+        alerts.hear("Priya!", from: "microphone", at: start.addingTimeInterval(16))   // called again
         #expect(raised.count == 2)
     }
 }

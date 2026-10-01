@@ -72,8 +72,9 @@ public final class NameAlerts {
     /// Told about each alert; set by the app once it can show them.
     public var onAlert: ((SoundAlert) -> Void)?
     /// One alert per this many seconds: a name in a partial line and again
-    /// in its settled line, or said twice in a sentence, is one alert.
-    public var quietSeconds: TimeInterval = 20
+    /// in its settled line (about 2 s later), or called twice in a row, is
+    /// one alert. Kept short: at 20 s a second call 16 s later was missed.
+    public var quietSeconds: TimeInterval = 5
 
     private let sourceIDs: Set<String>
     private let names: () -> String
