@@ -4,6 +4,11 @@ import SwiftUI
 
 struct SapthamSettingsView: View {
     let transcripts: TranscriptLibrary
+    let soundAlerts: SoundAlertListener
+    /// Asked when the user turns alerts on (notification permission).
+    var alertsTurnedOn: () -> Void = {}
+    @AppStorage(SapthamSettings.soundAlerts) private var alertsOn = SapthamSettings.soundAlertsDefault
+    @AppStorage(SapthamSettings.soundAlertKinds) private var alertKinds = SapthamSettings.soundAlertKindsDefault
     @AppStorage(SapthamSettings.recordCalls) private var recordCalls = SapthamSettings.recordCallsDefault
     @AppStorage(SapthamSettings.autoCaptionCalls) private var autoCaptionCalls = SapthamSettings.autoCaptionCallsDefault
     @AppStorage(SapthamSettings.keepDays) private var keepDays = SapthamSettings.keepDaysDefault
@@ -16,6 +21,33 @@ struct SapthamSettingsView: View {
                 Toggle("Caption calls automatically", isOn: $autoCaptionCalls)
                 Text("When you answer a call on this Mac, captions and the caption window start by themselves, and the window hides again after the call.")
                     .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Section("Sound alerts") {
+                Toggle("Alert me to sounds around this Mac", isOn: $alertsOn)
+                    .onChange(of: alertsOn) { _, on in if on { alertsTurnedOn() } }
+                Text("Saptham listens through the microphone and flashes the screen for the sounds you choose. The microphone stays on while this is on, so the orange microphone light shows. Nothing is recorded or sent anywhere.")
+                    .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
+                if alertsOn {
+                    ForEach(SoundAlertKind.all) { kind in
+                        Toggle(isOn: alertKindBinding(kind.id)) {
+                            Label(kind.title, systemImage: kind.systemImage)
+                        }
+                    }
+                    if let problem = soundAlerts.problem {
+                        Label(problem, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !soundAlerts.recent.isEmpty {
+                        LabeledContent("Recent") {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                ForEach(soundAlerts.recent.prefix(5)) { alert in
+                                    Text("\(alert.kind.title) · \(alert.time.formatted(date: .omitted, time: .shortened))")
+                                }
+                            }
+                        }
+                    }
+                }
+                Button("Show a test alert", systemImage: "bell.badge") { soundAlerts.showTest() }
             }
             Section("Call recording") {
                 Toggle("Record phone calls", isOn: $recordCalls)
@@ -59,6 +91,17 @@ struct SapthamSettingsView: View {
         .padding()
     }
 
+    private func alertKindBinding(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { alertKinds.split(separator: ",").contains(Substring(id)) },
+            set: { on in
+                var ids = Set(alertKinds.split(separator: ",").map(String.init))
+                if on { ids.insert(id) } else { ids.remove(id) }
+                // Kept in catalogue order so the saved value is stable.
+                alertKinds = SoundAlertKind.all.map(\.id).filter(ids.contains).joined(separator: ",")
+            })
+    }
+
     private func keepDaysName(_ days: Int) -> String {
         switch days {
         case 1: "1 day"
@@ -98,5 +141,5 @@ private struct ThirdPartyNoticesView: View {
 
 #Preview {
     let services = MacCaptionEngine.makePreviewServices()
-    SapthamSettingsView(transcripts: services.transcripts)
+    SapthamSettingsView(transcripts: services.transcripts, soundAlerts: SoundAlertListener(present: { _ in }))
 }

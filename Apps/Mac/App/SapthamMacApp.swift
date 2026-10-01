@@ -9,6 +9,8 @@ struct SapthamMacApp: App {
     @State private var services: MacAppServices
     @State private var captionWindow = CaptionWindowController()
     @State private var navigation: TranscriptNavigation
+    @State private var soundAlerts: SoundAlertListener
+    @State private var alertPresenter: SoundAlertPresenter
     @State private var autoCalls: AutoCallCaptioner?
     @AppStorage("captionWindowVisible") private var captionWindowVisible = false
 
@@ -25,7 +27,13 @@ struct SapthamMacApp: App {
         _captionWindow = State(initialValue: panel)
         let navigation = TranscriptNavigation(voiceNotes: services.voiceNotes)
         _navigation = State(initialValue: navigation)
+        let alertPresenter = SoundAlertPresenter()
+        let soundAlerts = SoundAlertListener(present: alertPresenter.present)
+        _alertPresenter = State(initialValue: alertPresenter)
+        _soundAlerts = State(initialValue: soundAlerts)
         appDelegate.navigation = navigation
+        // Demo mode never opens the microphone.
+        if !previewMode { soundAlerts.start() }
 
         if previewMode, let firstSource = engine.sources.first {
             engine.start(firstSource.id)
@@ -48,7 +56,10 @@ struct SapthamMacApp: App {
              AnyView(TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
                                        navigation: navigation))),
             ("Corrections", CGSize(width: 700, height: 420), AnyView(CorrectionsView(corrections: services.corrections))),
-            ("Settings", CGSize(width: 560, height: 560), AnyView(SapthamSettingsView(transcripts: services.transcripts))),
+            ("SoundAlert", CGSize(width: 1280, height: 800),
+             AnyView(SoundAlertOverlay(alert: SoundAlert(kind: SoundAlertKind.all[0], confidence: 1)))),
+            ("Settings", CGSize(width: 560, height: 900),
+             AnyView(SapthamSettingsView(transcripts: services.transcripts, soundAlerts: soundAlerts))),
             ("MenuBarPanel", CGSize(width: 360, height: 760),
              AnyView(MenuBarPanel(controller: services.captions, captionWindow: panel, navigation: navigation,
                                   isCaptionWindowVisible: .constant(true)))),
@@ -108,7 +119,8 @@ struct SapthamMacApp: App {
         .defaultLaunchBehavior(Self.isPreviewMode ? .presented : .suppressed)
 
         Settings {
-            SapthamSettingsView(transcripts: services.transcripts)
+            SapthamSettingsView(transcripts: services.transcripts, soundAlerts: soundAlerts,
+                                alertsTurnedOn: alertPresenter.requestNotificationPermission)
         }
     }
 

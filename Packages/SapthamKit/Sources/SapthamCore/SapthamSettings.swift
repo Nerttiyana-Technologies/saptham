@@ -43,4 +43,23 @@ public enum SapthamSettings {
     public static var recordCallsValue: Bool {
         UserDefaults.standard.object(forKey: recordCalls) as? Bool ?? recordCallsDefault
     }
+
+    /// Listen to the room through the microphone for sounds such as the
+    /// doorbell. Off by default: it keeps the microphone on all the time.
+    public static let soundAlerts = "soundAlerts"
+    public static let soundAlertsDefault = false
+
+    public static var soundAlertsValue: Bool {
+        UserDefaults.standard.object(forKey: soundAlerts) as? Bool ?? soundAlertsDefault
+    }
+
+    /// Which sounds alert, as comma-separated `SoundAlertKind` ids (a String
+    /// so `@AppStorage` can hold it).
+    public static let soundAlertKinds = "soundAlertKinds"
+    public static let soundAlertKindsDefault = SoundAlertKind.all.filter(\.onByDefault).map(\.id).joined(separator: ",")
+
+    public static var soundAlertKindsValue: Set<String> {
+        let saved = UserDefaults.standard.string(forKey: soundAlertKinds) ?? soundAlertKindsDefault
+        return Set(saved.split(separator: ",").map(String.init))
+    }
 }
