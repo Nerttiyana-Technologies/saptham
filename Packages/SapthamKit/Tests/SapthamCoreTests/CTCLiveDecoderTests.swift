@@ -129,3 +129,16 @@ private extension Array where Element == Int {
         return front ? fill + self : self + fill
     }
 }
+
+struct TamilRepairTests {
+    @Test func aVowelSignAfterAPulliReplacesIt() {
+        // From a real voice note: "translate" written ட்ிரான்ஸ்லேட்.
+        #expect("ட்\u{0BBF}ரான்ஸ்லேட்".repairingTamilVowelSigns() == "டிரான்ஸ்லேட்")
+    }
+
+    @Test func validTamilAndOtherTextAreUntouched() {
+        for text in ["சுரேஷ்", "ரமேஷுக்கு", "நல்லா இருக்கியா", "(unclear)", "Mac"] {
+            #expect(text.repairingTamilVowelSigns() == text)
+        }
+    }
+}

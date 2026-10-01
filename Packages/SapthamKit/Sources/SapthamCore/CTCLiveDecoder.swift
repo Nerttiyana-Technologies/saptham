@@ -275,5 +275,30 @@ public struct CTCLiveDecoder {
             .joined()
             .replacingOccurrences(of: "\u{2581}", with: " ")
             .trimmingCharacters(in: .whitespaces)
+            .repairingTamilVowelSigns()
+    }
+}
+
+extension String {
+    /// The model sometimes writes a consonant with its pulli (், "no vowel")
+    /// and then a vowel sign on the same letter: ட் + ி. That is not valid
+    /// Tamil and shows as a dotted circle; the letter meant is the consonant
+    /// with that vowel (டி), so the pulli is dropped.
+    func repairingTamilVowelSigns() -> String {
+        var scalars = String.UnicodeScalarView()
+        var pending: Unicode.Scalar?
+        for scalar in unicodeScalars {
+            if let held = pending {
+                pending = nil
+                if !Self.isTamilVowelSign(scalar) { scalars.append(held) }
+            }
+            if scalar == "\u{0BCD}" { pending = scalar } else { scalars.append(scalar) }
+        }
+        if let held = pending { scalars.append(held) }
+        return String(scalars)
+    }
+
+    private static func isTamilVowelSign(_ scalar: Unicode.Scalar) -> Bool {
+        (0x0BBE...0x0BCC).contains(scalar.value) || scalar.value == 0x0BD7
     }
 }

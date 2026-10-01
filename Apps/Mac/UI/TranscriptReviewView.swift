@@ -329,7 +329,7 @@ private struct TranscriptLineRow: View {
             replacementSelection = TextSelection(range: replacement.startIndex..<replacement.endIndex)
             editorOpen = true
         } label: {
-            Text(tokenText + trailingText(after: range))
+            Text(leadingText(before: index) + tokenText + trailingText(after: range))
                 .foregroundStyle(.primary)
                 .padding(.vertical, 2)
                 .background {
@@ -344,6 +344,14 @@ private struct TranscriptLineRow: View {
         .buttonStyle(.plain)
         .accessibilityHidden(true)
         .help("Select \(tokenText) to correct it")
+    }
+
+    /// Text before the first word ("(" of "(unclear)", an opening quote),
+    /// shown with the first word; later words carry what precedes them as
+    /// the previous word's trailing text.
+    private func leadingText(before index: Int) -> String {
+        guard index == 0, let first = words.first else { return "" }
+        return (display as NSString).substring(to: first.location).trimmingCharacters(in: .whitespaces)
     }
 
     private func trailingText(after range: NSRange) -> String {
