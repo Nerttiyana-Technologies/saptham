@@ -59,6 +59,8 @@ struct TranscriptReviewView: View {
             if let session = transcripts.sessions.first(where: { $0.id == selectedSessionID }) {
                 SessionDetailView(session: session, transcripts: transcripts, corrections: corrections,
                                   textSize: min(captionTextSize, 28), isTranscribing: isTranscribing(session.id))
+                    // Fresh state per transcript; leaving one saves the line being edited.
+                    .id(session.id)
             } else {
                 ContentUnavailableView("Choose a transcript", systemImage: "text.alignleft", description: Text("Select a session to review its captions."))
             }
@@ -161,6 +163,11 @@ private struct SessionDetailView: View {
     var isTranscribing = false
     @State private var player = TranscriptAudioPlayer()
     @State private var selectedLineIDs = Set<TranscriptLine.ID>()
+    /// "Edit transcript": every line is a text field, read like a paragraph.
+    /// Each line keeps its own audio and is saved as that line's `edited`.
+    @State private var isEditing = false
+    @State private var drafts: [TranscriptLine.ID: String] = [:]
+    @FocusState private var focusedLineID: TranscriptLine.ID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -179,6 +186,16 @@ private struct SessionDetailView: View {
                     }
                 }
                 Spacer()
+                if isEditing {
+                    Button("Done", systemImage: "checkmark") { stopEditing() }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.cancelAction)
+                        .help("Stop editing (Esc). Every line is saved as you leave it.")
+                } else {
+                    Button("Edit Transcript", systemImage: "square.and.pencil") { startEditing() }
+                        .disabled(session.lines.isEmpty || isTranscribing)
+                        .help("Edit every line, one after another")
+                }
                 Button("Copy Selected Lines", systemImage: "doc.on.doc") { copySelectedLines() }
                     .disabled(selectedLineIDs.isEmpty)
                     .help("Copy selected lines")
@@ -193,9 +210,13 @@ private struct SessionDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         ForEach(session.lines) { line in
-                            TranscriptLineRow(session: session, line: line, transcripts: transcripts,
-                                              corrections: corrections, textSize: textSize,
-                                              player: player, selectedLineIDs: $selectedLineIDs)
+                            if isEditing {
+                                editableRow(line)
+                            } else {
+                                TranscriptLineRow(session: session, line: line, transcripts: transcripts,
+                                                  corrections: corrections, textSize: textSize,
+                                                  player: player, selectedLineIDs: $selectedLineIDs)
+                            }
                         }
                     }
                     .padding(22)
@@ -207,7 +228,89 @@ private struct SessionDetailView: View {
         .focusedValue(\.transcriptCopy) {
             if selectedLineIDs.isEmpty { copyTranscript() } else { copySelectedLines() }
         }
-        .onDisappear { player.stop() }
+        .onDisappear {
+            if isEditing { stopEditing() }
+            player.stop()
+        }
+        .onChange(of: focusedLineID) { left, _ in
+            if let left { save(left) }
+        }
+        .onChange(of: isTranscribing) { _, transcribing in
+            if transcribing, isEditing { stopEditing() }
+        }
+    }
+
+    private func editableRow(_ line: TranscriptLine) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(line.time, style: .time)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.glassSecondary)
+                .frame(width: 72, alignment: .trailing)
+            TextField("Line", text: draftBinding(line.id), axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: textSize))
+                .focused($focusedLineID, equals: line.id)
+                .accessibilityLabel("Line at \(timeString(line.time))")
+                .onSubmit { focusNext(after: line.id) }
+                .onKeyPress(.tab) { focusNext(after: line.id); return .handled }
+            if line.edited != nil {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.glassSecondary)
+                    .help("Edited")
+                    .accessibilityLabel("Edited")
+            }
+            if let span = line.audio, let url = transcripts.recordingURL(for: session),
+               FileManager.default.fileExists(atPath: url.path) {
+                Button {
+                    player.play(span, from: url)
+                } label: {
+                    Image(systemName: "play.fill").frame(width: 44, height: 44)
+                }
+                .buttonStyle(.borderless)
+                .focusable(false)
+                .help("Play this line")
+                .accessibilityLabel("Play this line from the recording")
+            }
+        }
+    }
+
+    private func draftBinding(_ id: TranscriptLine.ID) -> Binding<String> {
+        Binding(get: { drafts[id] ?? "" }, set: { drafts[id] = $0 })
+    }
+
+    private func display(_ line: TranscriptLine) -> String {
+        line.displayText(using: corrections.corrector)
+    }
+
+    private func startEditing() {
+        drafts = Dictionary(uniqueKeysWithValues: session.lines.map { ($0.id, display($0)) })
+        isEditing = true
+        focusedLineID = session.lines.first?.id
+    }
+
+    private func stopEditing() {
+        if let focusedLineID { save(focusedLineID) }
+        focusedLineID = nil
+        isEditing = false
+        drafts = [:]
+    }
+
+    /// Return and Tab save the line and go to the next one; the last line
+    /// finishes editing.
+    private func focusNext(after id: TranscriptLine.ID) {
+        save(id)
+        guard let index = session.lines.firstIndex(where: { $0.id == id }),
+              session.lines.indices.contains(index + 1) else { stopEditing(); return }
+        focusedLineID = session.lines[index + 1].id
+    }
+
+    /// Saves a line only when its text changed. A line emptied by mistake
+    /// keeps what it had; "Revert to original" undoes an edit.
+    private func save(_ id: TranscriptLine.ID) {
+        guard let draft = drafts[id], let line = session.lines.first(where: { $0.id == id }) else { return }
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text != display(line) else { return }
+        transcripts.setEdited(text, line: id, in: session.id)
     }
 
     private func copyTranscript() {
@@ -234,12 +337,17 @@ private struct TranscriptLineRow: View {
     let player: TranscriptAudioPlayer
     @Binding var selectedLineIDs: Set<TranscriptLine.ID>
     @State private var selectedWords: ClosedRange<Int>?
+    /// Correcting the picked words, inline.
     @State private var editorOpen = false
+    /// Rewriting the whole line, inline (the pencil button).
+    @State private var lineEditorOpen = false
+    /// Rewriting the whole line in a sheet (VoiceOver action, context menu).
     @State private var accessibleEditorOpen = false
     @State private var replacement = ""
     @State private var replacementSelection: TextSelection?
 
     private var display: String { line.displayText(using: corrections.corrector) }
+    private var editsWholeLine: Bool { lineEditorOpen || accessibleEditorOpen }
     private var words: [NSRange] { CaptionWords.ranges(in: display) }
     private var selectedPhrase: String {
         guard let selectedWords, words.indices.contains(selectedWords.lowerBound), words.indices.contains(selectedWords.upperBound),
@@ -279,7 +387,7 @@ private struct TranscriptLineRow: View {
                 .onKeyPress(.leftArrow) { moveSelection(-1); return .handled }
                 .onKeyPress(.rightArrow) { moveSelection(1); return .handled }
                 .onKeyPress(.return) { if selectedWords != nil { editorOpen = true; return .handled }; return .ignored }
-                if editorOpen { correctionEditor(accessible: false) }
+                if editorOpen || lineEditorOpen { correctionEditor(wholeLine: lineEditorOpen) }
                 HStack(spacing: 8) {
                     if line.edited != nil {
                         Label("Edited", systemImage: "pencil")
@@ -293,6 +401,14 @@ private struct TranscriptLineRow: View {
                 }
             }
             Spacer(minLength: 0)
+            Button {
+                openLineEditor()
+            } label: {
+                Image(systemName: "pencil").frame(width: 44, height: 44)
+            }
+            .buttonStyle(.borderless)
+            .help("Edit this whole line")
+            .accessibilityLabel("Edit this whole line")
             if let span = line.audio, let url = transcripts.recordingURL(for: session), FileManager.default.fileExists(atPath: url.path) {
                 Button {
                     player.play(span, from: url)
@@ -306,7 +422,7 @@ private struct TranscriptLineRow: View {
             }
         }
         .padding(.vertical, 2)
-        .sheet(isPresented: $accessibleEditorOpen) { correctionEditor(accessible: true).frame(minWidth: 420) }
+        .sheet(isPresented: $accessibleEditorOpen) { correctionEditor(wholeLine: true).frame(minWidth: 420) }
         .contextMenu {
             Button("Copy Line", systemImage: "doc.on.doc") { copy(display) }
             Button("Correct words in this line…", systemImage: "pencil") { openAccessibleEditor() }
@@ -327,6 +443,7 @@ private struct TranscriptLineRow: View {
             }
             replacement = selectedPhraseForCurrentSelection(index: index, extend: shift)
             replacementSelection = TextSelection(range: replacement.startIndex..<replacement.endIndex)
+            lineEditorOpen = false
             editorOpen = true
         } label: {
             Text(leadingText(before: index) + tokenText + trailingText(after: range))
@@ -370,60 +487,64 @@ private struct TranscriptLineRow: View {
         return String(display[start.lowerBound..<end.upperBound]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Return saves the line, so fixing what was said is the easy path;
+    /// "Always fix this" (a rule for every transcript) is ⌘Return.
     @ViewBuilder
-    private func correctionEditor(accessible: Bool) -> some View {
+    private func correctionEditor(wholeLine: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(accessible ? "Correct this line" : "Correct selected words")
+            Text(wholeLine ? "Correct this line" : "Correct selected words")
                 .font(.headline)
-            Text(accessible ? "Heard: \(line.heard)" : "Heard: \(selectedPhrase)")
+            Text(wholeLine ? "Heard: \(line.heard)" : "Heard: \(selectedPhrase)")
                 .foregroundStyle(.glassSecondary).textSelection(.enabled)
             TextField("Should be:", text: $replacement, selection: $replacementSelection)
                 .textFieldStyle(.roundedBorder)
                 .focused($fieldFocused)
-                .onSubmit { accessible ? saveLineEdit() : saveRule() }
+                .onSubmit { saveLineEdit() }
             HStack {
-                Button("Cancel") { editorOpen = false; accessibleEditorOpen = false; selectedWords = nil }
+                Button("Cancel") { closeEditors() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                if accessible {
-                    // The whole line is being rewritten here, so a rule (which
-                    // would match the entire sentence) makes no sense.
-                    Button("Save this line") { saveLineEdit() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return, modifiers: [])
-                } else {
-                    Button("Only this line") { saveLineEdit() }
-                        .keyboardShortcut("\r", modifiers: [.command])
+                if !wholeLine {
+                    // The whole line is rewritten otherwise, and a rule
+                    // matching the entire sentence makes no sense.
                     Button("Always fix this") { saveRule() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return, modifiers: [])
+                        .keyboardShortcut(.return, modifiers: [.command])
+                        .help("Fix these words in every transcript (⌘Return)")
                 }
+                Button(wholeLine ? "Save this line" : "Only this line") { saveLineEdit() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.return, modifiers: [])
             }
         }
         .padding(16)
         .onAppear {
-            if accessible { selectedWords = nil; replacement = display }
+            if wholeLine { selectedWords = nil; replacement = display }
             else { replacement = selectedPhrase }
             replacementSelection = TextSelection(range: replacement.startIndex..<replacement.endIndex)
             fieldFocused = true
         }
-        .onKeyPress(.escape) { editorOpen = false; accessibleEditorOpen = false; return .handled }
+        .onKeyPress(.escape) { closeEditors(); return .handled }
     }
 
     @FocusState private var fieldFocused: Bool
 
-    private func saveRule() {
-        let heard = accessibleEditorOpen ? line.heard : selectedPhrase
-        guard !heard.isEmpty, !replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        corrections.add(heard: heard, replacement: replacement)
+    private func closeEditors() {
         editorOpen = false
+        lineEditorOpen = false
         accessibleEditorOpen = false
         selectedWords = nil
     }
 
+    private func saveRule() {
+        let heard = editsWholeLine ? line.heard : selectedPhrase
+        guard !heard.isEmpty, !replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        corrections.add(heard: heard, replacement: replacement)
+        closeEditors()
+    }
+
     private func saveLineEdit() {
         guard !replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        if accessibleEditorOpen {
+        if editsWholeLine {
             transcripts.setEdited(replacement, line: line.id, in: session.id)
         } else if let selectedWords,
                   let start = Range(words[selectedWords.lowerBound], in: display),
@@ -432,9 +553,16 @@ private struct TranscriptLineRow: View {
             text.replaceSubrange(start.lowerBound..<end.upperBound, with: replacement)
             transcripts.setEdited(text, line: line.id, in: session.id)
         }
+        closeEditors()
+    }
+
+    private func openLineEditor() {
         editorOpen = false
-        accessibleEditorOpen = false
         selectedWords = nil
+        replacement = display
+        replacementSelection = TextSelection(range: replacement.startIndex..<replacement.endIndex)
+        fieldFocused = true
+        lineEditorOpen = true
     }
 
     private func openAccessibleEditor() {
