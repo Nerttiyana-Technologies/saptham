@@ -87,10 +87,10 @@ public final class NameListener {
     }
 
     private func followAndTrack() {
-        withObservationTracking { follow() } onChange: {
-            Task { @MainActor [weak self] in
-                guard let self, isStarted else { return }
-                followAndTrack()
+        withObservationTracking { follow() } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.isStarted else { return }
+                self.followAndTrack()
             }
         }
     }
@@ -107,7 +107,9 @@ public final class NameListener {
                 self?.isListening = true
                 self?.problem = nil
                 for try await update in transcriber.transcribe(audio) {
-                    guard let self else { break }
+                    // A stopped or replaced recogniser can still settle a
+                    // last line; it belongs to a listener that has ended.
+                    guard let self, running?.generation == generation else { break }
                     switch update {
                     case .volatile(let text), .final(let text, _, _): heard(text)
                     }
