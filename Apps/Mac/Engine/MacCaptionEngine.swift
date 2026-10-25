@@ -12,6 +12,9 @@ struct MacAppServices {
     let voiceNotes: VoiceNotes
     /// The app sets `onAlert` once it can show alerts.
     let nameAlerts: NameAlerts
+    /// Hears the room for name alerts in every caption mode; nil in demo mode,
+    /// which never opens the microphone. The app calls `start()`.
+    var nameListener: NameListener? = nil
 }
 
 /// Composition root for the Mac app: the only place that knows which audio
@@ -22,6 +25,8 @@ enum MacCaptionEngine {
         static let calls = "calls"
         static let microphone = "microphone"
         static let everything = "system"
+        /// Not a caption source: NameListener's room microphone, as told to NameAlerts.
+        static let nameListener = "nameListener"
     }
 
     typealias LanguageID = CaptionRecognisers.LanguageID
@@ -38,8 +43,11 @@ enum MacCaptionEngine {
             recordingsFolder: dataFolder.appendingPathComponent("Recordings", isDirectory: true))
         let corrections = CorrectionBook(fileURL: dataFolder.appendingPathComponent("corrections.json"))
         deleteExpired(from: transcripts)
-        // People in the room, not videos or callers: only "Conversation".
-        let nameAlerts = NameAlerts(sourceIDs: [SourceID.microphone], names: { SapthamSettings.alertNamesValue })
+        // People in the room (Conversation captions, or the name listener
+        // in every other mode) and callers; not "Everything playing", where
+        // films and videos say common names (ADR 0001).
+        let nameAlerts = NameAlerts(sourceIDs: [SourceID.microphone, SourceID.calls, SourceID.nameListener],
+                                    names: { SapthamSettings.alertNamesValue })
 
         let captions = CaptionSession(
             sources: [
@@ -81,13 +89,23 @@ enum MacCaptionEngine {
             // Every source: songs reach calls (hold music) and the
             // microphone as well as "Everything playing".
             makeSceneDetector: { SoundSceneDetector() },
+            // Hidden coupling with NameListener below: it stands down in
+            // Conversation mode because these lines reach NameAlerts. Stop
+            // passing them and names go unheard in Conversation mode.
             lineHeard: { nameAlerts.hear($0, from: $1) })
+        let nameListener = NameListener(
+            makeSource: { MicrophoneSource() },
+            makeTranscriber: makeTranscriber,
+            languageID: { captions.activeLanguageID },
+            isWanted: { !NameSpotter(list: SapthamSettings.alertNamesValue).isEmpty },
+            isCoveredElsewhere: { captions.activeSourceID == SourceID.microphone },
+            heard: { nameAlerts.hear(corrections.apply(to: $0), from: SourceID.nameListener) })
         // Voice notes use whichever caption language is chosen when they arrive.
         let voiceNotes = VoiceNotes(recordingsFolder: transcripts.recordingsFolder, transcripts: transcripts,
                                     languageID: { captions.activeLanguageID },
                                     makeTranscriber: makeTranscriber)
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
-                              voiceNotes: voiceNotes, nameAlerts: nameAlerts)
+                              voiceNotes: voiceNotes, nameAlerts: nameAlerts, nameListener: nameListener)
     }
 
     nonisolated static func makeTranscriber(_ language: CaptionLanguageOption.ID) -> SpeechTranscribing {

@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import SapthamCore
@@ -65,5 +66,98 @@ struct CaptionSessionLineHeardTests {
         for _ in 0..<50 where session.activeSourceID != nil { try await Task.sleep(for: .milliseconds(20)) }
 
         #expect(heard == ["microphone: Priya", "microphone: Priya, come here."])
+    }
+}
+
+@MainActor
+struct NameListenerTests {
+    /// A microphone that stays open until stopped.
+    final class OpenSource: AudioSource {
+        private(set) var stopped = false
+        private var continuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
+        func start() async throws -> AsyncStream<AVAudioPCMBuffer> {
+            let (stream, continuation) = AsyncStream<AVAudioPCMBuffer>.makeStream()
+            self.continuation = continuation
+            return stream
+        }
+        func stop() { stopped = true; continuation?.finish() }
+    }
+
+    /// Says one line in its language, then waits for the audio to end.
+    final class OneLine: SpeechTranscribing {
+        let text: String
+        init(_ text: String) { self.text = text }
+        func transcribe(_ audio: AsyncStream<AVAudioPCMBuffer>) -> AsyncThrowingStream<TranscriptUpdate, Error> {
+            let text = text
+            return AsyncThrowingStream { continuation in
+                continuation.yield(.final(text))
+                Task {
+                    for await _ in audio {}
+                    continuation.finish()
+                }
+            }
+        }
+    }
+
+    final class Inputs {
+        var wanted = true
+        var covered = false
+        var language = "en"
+        var sources: [OpenSource] = []
+        var heard: [String] = []
+    }
+
+    private func makeListener(_ inputs: Inputs) -> NameListener {
+        NameListener(
+            makeSource: { let source = OpenSource(); inputs.sources.append(source); return source },
+            makeTranscriber: { OneLine($0 == "ta" ? "சுரேஷ் வா" : "Suresh, come") },
+            languageID: { inputs.language },
+            isWanted: { inputs.wanted },
+            isCoveredElsewhere: { inputs.covered },
+            heard: { inputs.heard.append($0) })
+    }
+
+    private func settle() async throws {
+        for _ in 0..<5 { try await Task.sleep(for: .milliseconds(20)) }
+    }
+
+    @Test func listensOnlyWhileWantedAndNotCovered() async throws {
+        let inputs = Inputs()
+        inputs.wanted = false
+        let listener = makeListener(inputs)
+        listener.start()
+        #expect(inputs.sources.isEmpty)
+
+        inputs.wanted = true
+        listener.follow()
+        try await settle()
+        #expect(inputs.sources.count == 1)
+        #expect(inputs.heard == ["Suresh, come"])
+
+        inputs.covered = true          // Conversation captions took over
+        listener.follow()
+        #expect(inputs.sources[0].stopped)
+
+        inputs.covered = false
+        listener.follow()
+        #expect(inputs.sources.count == 2)
+        listener.stop()
+        #expect(inputs.sources[1].stopped)
+    }
+
+    @Test func restartsInANewLanguageAndIgnoresRepeats() async throws {
+        let inputs = Inputs()
+        let listener = makeListener(inputs)
+        listener.start()
+        listener.follow()
+        #expect(inputs.sources.count == 1)    // nothing changed: no restart
+
+        inputs.language = "ta"
+        listener.follow()
+        try await settle()
+        #expect(inputs.sources.count == 2)
+        #expect(inputs.sources[0].stopped)
+        #expect(inputs.heard.last == "சுரேஷ் வா")
+        listener.stop()
     }
 }

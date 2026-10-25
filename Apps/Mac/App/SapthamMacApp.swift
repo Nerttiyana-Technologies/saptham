@@ -35,6 +35,7 @@ struct SapthamMacApp: App {
         services.nameAlerts.onAlert = alertPresenter.present
         // Demo mode never opens the microphone.
         if !previewMode { soundAlerts.start() }
+        services.nameListener?.start()
 
         if previewMode, let firstSource = engine.sources.first {
             engine.start(firstSource.id)
@@ -121,6 +122,7 @@ struct SapthamMacApp: App {
 
         Settings {
             SapthamSettingsView(transcripts: services.transcripts, soundAlerts: soundAlerts,
+                                nameListener: services.nameListener,
                                 alertsTurnedOn: alertPresenter.requestNotificationPermission)
         }
     }

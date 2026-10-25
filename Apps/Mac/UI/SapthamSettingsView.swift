@@ -5,6 +5,8 @@ import SwiftUI
 struct SapthamSettingsView: View {
     let transcripts: TranscriptLibrary
     let soundAlerts: SoundAlertListener
+    /// Nil in demo mode.
+    var nameListener: NameListener? = nil
     /// Asked when the user turns alerts on (notification permission).
     var alertsTurnedOn: () -> Void = {}
     @AppStorage(SapthamSettings.soundAlerts) private var alertsOn = SapthamSettings.soundAlertsDefault
@@ -52,8 +54,15 @@ struct SapthamSettingsView: View {
             }
             Section("Name alerts") {
                 TextField("Your names", text: $alertNames, prompt: Text("e.g. Priya, பிரியா, Amma"))
-                Text("While Saptham captions a conversation, it flashes the screen when someone says one of these. Separate them with commas, and add the Tamil spelling and any nickname people call you. Leave empty to turn name alerts off.")
+                Text("Saptham flashes the screen when someone near this Mac, or a caller, says one of these, whatever it is captioning. Videos and other sound playing never alert. Separate names with commas, and add the Tamil spelling and any nickname people call you. Leave empty to turn name alerts off.")
                     .font(.callout).foregroundStyle(.glassSecondary).fixedSize(horizontal: false, vertical: true)
+                if let problem = nameListener?.problem {
+                    Label(problem, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                } else if nameListener?.isListening == true {
+                    Label("Listening for your name in every mode", systemImage: "ear")
+                        .font(.callout).foregroundStyle(.glassSecondary)
+                }
             }
             Section("Call recording") {
                 Toggle("Record phone calls", isOn: $recordCalls)
