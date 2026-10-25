@@ -1,0 +1,10 @@
+# Build-time only: nothing here ships in the app.
+# nemo-toolkit Apache-2.0, torch BSD-3-Clause, coremltools BSD-3-Clause,
+# numpy BSD-3-Clause, PyYAML MIT, soundfile BSD-3-Clause, jiwer Apache-2.0.
+nemo-toolkit[asr]==3.0.0
+torch==2.14.0
+coremltools==9.0
+numpy==2.5.3
+PyYAML==6.0.3
+soundfile==0.14.0
+jiwer==4.0.0

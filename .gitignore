@@ -5,6 +5,9 @@
 ## User settings
 xcuserdata/
 
+## macOS Finder metadata
+.DS_Store
+
 ## Obj-C/Swift specific
 *.hmap
 
@@ -75,8 +78,12 @@ __pycache__/
 
 # Private, never pushed (owner direction 2026-10-01): experiment programs,
 # build and test scripts, test data. Only the product's source goes to GitHub.
+# Exception (owner direction 2026-10-26): Tools/ModelBuild is public so anyone
+# can build the Tamil speech model.
 /Spikes/
-/Tools/
+/Tools/*
+!/Tools/ModelBuild/
+/Tools/ModelBuild/.venv/
 
 # Private planning docs (ADRs), never pushed
 /Docs/
