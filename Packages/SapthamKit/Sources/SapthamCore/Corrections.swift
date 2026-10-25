@@ -65,6 +65,20 @@ public struct TextCorrector: Sendable {
     }
 }
 
+/// Where the words are in caption text, for picking words to correct.
+///
+/// Letters, marks and digits make one word, as in TextCorrector's
+/// whole-word match: Tamil vowel signs and the pulli (்) are marks, so
+/// "என்னடா" is one word, not "என" and "னட". The two must agree, or a word
+/// the user picks becomes a rule that can never match.
+public enum CaptionWords {
+    public static func ranges(in text: String) -> [NSRange] {
+        guard let regex = try? NSRegularExpression(
+            pattern: "[\\p{L}\\p{M}\\p{N}]+(?:['’][\\p{L}\\p{M}\\p{N}]+)*") else { return [] }
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).map(\.range)
+    }
+}
+
 /// The user's correction rules, saved as JSON on this device.
 @MainActor
 @Observable

@@ -240,7 +240,7 @@ private struct TranscriptLineRow: View {
     @State private var replacementSelection: TextSelection?
 
     private var display: String { line.displayText(using: corrections.corrector) }
-    private var words: [NSRange] { WordSelection.ranges(in: display) }
+    private var words: [NSRange] { CaptionWords.ranges(in: display) }
     private var selectedPhrase: String {
         guard let selectedWords, words.indices.contains(selectedWords.lowerBound), words.indices.contains(selectedWords.upperBound),
               let range = Range(NSRange(location: words[selectedWords.lowerBound].location,
@@ -453,13 +453,6 @@ private struct TranscriptLineRow: View {
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-    }
-}
-
-private enum WordSelection {
-    static func ranges(in text: String) -> [NSRange] {
-        guard let regex = try? NSRegularExpression(pattern: "[\\p{L}\\p{N}]+(?:['’][\\p{L}\\p{N}]+)*") else { return [] }
-        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).map(\.range)
     }
 }
 

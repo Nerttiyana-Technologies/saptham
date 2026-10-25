@@ -25,6 +25,15 @@ struct TextCorrectorTests {
         #expect(fix.apply(to: "சென்னைக்கு போறேன், சென்னை.") == "சென்னைக்கு போறேன், Chennai.")
     }
 
+    @Test func picksWholeTamilWordsForCorrecting() {
+        let text = "என்னடா, எப்படி இருக்க? Don't worry"
+        let words = CaptionWords.ranges(in: text).map { (text as NSString).substring(with: $0) }
+        #expect(words == ["என்னடா", "எப்படி", "இருக்க", "Don't", "worry"])
+        // A picked word, saved as a rule, matches where it was picked.
+        let fix = corrector([(words[0], "என்ன")])
+        #expect(fix.apply(to: text) == "என்ன, எப்படி இருக்க? Don't worry")
+    }
+
     @Test func matchesPhrasesAcrossExtraSpaces() {
         let fix = corrector([("butt theories", "batteries")])
         #expect(fix.apply(to: "Bring the spare butt  theories, please.") == "Bring the spare batteries, please.")
