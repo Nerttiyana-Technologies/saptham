@@ -24,6 +24,16 @@ struct NameSpotterTests {
         #expect(spotter.firstName(in: "ரமணி வந்தாள்") == nil)
     }
 
+    @Test func findsATamilNameWithItsLastLetterDropped() {
+        let suresh = NameSpotter(list: "Suresh, சுரேஷ்")
+        #expect(suresh.firstName(in: "சுரே இங்க வா") == "சுரேஷ்")
+        #expect(suresh.firstName(in: "சுரேஷ கமிய") == "சுரேஷ்")
+        #expect(suresh.firstName(in: "சுரேந்திரன் வந்தாச்சு") == nil)    // another name, not a cut one
+        #expect(spotter.firstName(in: "ரமே வா") == "ரமேஷ்")
+        #expect(spotter.firstName(in: "பிரி பிரியா") == "பிரியா")
+        #expect(NameSpotter(list: "பிரியா").firstName(in: "இதை பிரி") == nil)   // vowel endings are never cut
+    }
+
     @Test func noNamesFindNothing() {
         let empty = NameSpotter(list: " , ")
         #expect(empty.isEmpty)

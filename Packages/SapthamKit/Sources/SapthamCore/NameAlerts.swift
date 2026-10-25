@@ -45,9 +45,18 @@ public struct NameSpotter: Sendable {
         guard !name.unicodeScalars.contains(where: { $0.isASCII }) else { return false }
         let pulli: Unicode.Scalar = "\u{0BCD}"
         var stem = name.unicodeScalars
-        if stem.last == pulli { stem.removeLast() }
-        // Three letters at least, so a short stem does not match every word.
-        return stem.count >= 3 && word.unicodeScalars.starts(with: stem)
+        guard stem.last == pulli else {
+            // Three letters at least, so a short stem does not match every word.
+            return stem.count >= 3 && word.unicodeScalars.starts(with: stem)
+        }
+        stem.removeLast()
+        if stem.count >= 3 && word.unicodeScalars.starts(with: stem) { return true }
+        // The Tamil recogniser often drops a final dead consonant: "சுரேஷ்"
+        // comes out as "சுரே". Only as the whole word, so "சுரேந்திரன்"
+        // does not match; names ending in a vowel are never cut ("பிரியா"
+        // would become the word "பிரி").
+        stem.removeLast()
+        return stem.count >= 3 && word.unicodeScalars.elementsEqual(stem)
     }
 
     private static func words(in text: String) -> [String] {
