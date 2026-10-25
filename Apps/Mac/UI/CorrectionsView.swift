@@ -3,6 +3,8 @@ import SwiftUI
 
 struct CorrectionsView: View {
     let corrections: CorrectionBook
+    let transcripts: TranscriptLibrary
+    let declinedSuggestions: DeclinedSuggestions
     @State private var selectedRuleID: CorrectionRule.ID?
     @State private var addingRule = false
 
@@ -47,6 +49,7 @@ struct CorrectionsView: View {
                     }
                 }
             }
+            SuggestedCorrectionsList(transcripts: transcripts, corrections: corrections, declined: declinedSuggestions)
             Divider()
             HStack {
                 Text("Changes apply to live captions and saved transcripts.")
@@ -126,5 +129,6 @@ private struct AddCorrectionView: View {
 
 #Preview {
     let services = MacCaptionEngine.makePreviewServices()
-    CorrectionsView(corrections: services.corrections)
+    CorrectionsView(corrections: services.corrections, transcripts: services.transcripts,
+                    declinedSuggestions: services.declinedSuggestions)
 }

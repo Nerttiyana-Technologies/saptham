@@ -70,7 +70,8 @@ public struct TextCorrector: Sendable {
 /// Letters, marks and digits make one word, as in TextCorrector's
 /// whole-word match: Tamil vowel signs and the pulli (்) are marks, so
 /// "என்னடா" is one word, not "என" and "னட". The two must agree, or a word
-/// the user picks becomes a rule that can never match.
+/// the user picks becomes a rule that can never match. EditPatterns finds
+/// repeated fixes with these words too, for the same reason.
 public enum CaptionWords {
     public static func ranges(in text: String) -> [NSRange] {
         guard let regex = try? NSRegularExpression(

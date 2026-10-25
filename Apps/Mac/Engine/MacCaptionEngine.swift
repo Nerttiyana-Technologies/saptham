@@ -9,6 +9,8 @@ struct MacAppServices {
     let captions: any CaptionControlling
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
+    /// Suggestions the user turned down (ADR 0002).
+    let declinedSuggestions: DeclinedSuggestions
     let voiceNotes: VoiceNotes
     /// The app sets `onAlert` once it can show alerts.
     let nameAlerts: NameAlerts
@@ -42,6 +44,7 @@ enum MacCaptionEngine {
             transcriptsFolder: dataFolder.appendingPathComponent("Transcripts", isDirectory: true),
             recordingsFolder: dataFolder.appendingPathComponent("Recordings", isDirectory: true))
         let corrections = CorrectionBook(fileURL: dataFolder.appendingPathComponent("corrections.json"))
+        let declinedSuggestions = DeclinedSuggestions(fileURL: dataFolder.appendingPathComponent("declined-suggestions.json"))
         deleteExpired(from: transcripts)
         // People in the room (Conversation captions, or the name listener
         // in every other mode) and callers; not "Everything playing", where
@@ -105,7 +108,7 @@ enum MacCaptionEngine {
                                     languageID: { captions.activeLanguageID },
                                     makeTranscriber: makeTranscriber)
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
-                              voiceNotes: voiceNotes, nameAlerts: nameAlerts, nameListener: nameListener)
+                              declinedSuggestions: declinedSuggestions, voiceNotes: voiceNotes, nameAlerts: nameAlerts, nameListener: nameListener)
     }
 
     nonisolated static func makeTranscriber(_ language: CaptionLanguageOption.ID) -> SpeechTranscribing {
@@ -167,6 +170,7 @@ extension MacCaptionEngine {
         let voiceNotes = VoiceNotes(recordingsFolder: transcripts.recordingsFolder, transcripts: transcripts,
                                     languageID: { LanguageID.tamilAndEnglish }, makeTranscriber: makeTranscriber)
         return MacAppServices(captions: PreviewCaptionController(), transcripts: transcripts, corrections: corrections,
+                              declinedSuggestions: DeclinedSuggestions(fileURL: folder.appendingPathComponent("declined-suggestions.json")),
                               voiceNotes: voiceNotes, nameAlerts: NameAlerts(sourceIDs: [], names: { "" }))
     }
 }

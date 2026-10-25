@@ -52,10 +52,11 @@ final class TranscriptNavigation {
 struct TranscriptsWindow: View {
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
+    let declinedSuggestions: DeclinedSuggestions
     @Bindable var navigation: TranscriptNavigation
 
     var body: some View {
-        TranscriptReviewView(transcripts: transcripts, corrections: corrections,
+        TranscriptReviewView(transcripts: transcripts, corrections: corrections, declinedSuggestions: declinedSuggestions,
                              selectedSessionID: $navigation.selectedSessionID,
                              isTranscribing: navigation.isTranscribing)
             .alert("Could not transcribe", isPresented: Binding(

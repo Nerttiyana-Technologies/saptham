@@ -5,6 +5,7 @@ import SwiftUI
 struct TranscriptReviewView: View {
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
+    let declinedSuggestions: DeclinedSuggestions
     @Binding var selectedSessionID: TranscriptSession.ID?
     /// True while a session's lines are still arriving (a voice note being transcribed).
     var isTranscribing: (TranscriptSession.ID) -> Bool = { _ in false }
@@ -58,6 +59,7 @@ struct TranscriptReviewView: View {
         } detail: {
             if let session = transcripts.sessions.first(where: { $0.id == selectedSessionID }) {
                 SessionDetailView(session: session, transcripts: transcripts, corrections: corrections,
+                                  declinedSuggestions: declinedSuggestions,
                                   textSize: min(captionTextSize, 28), isTranscribing: isTranscribing(session.id))
                     // Fresh state per transcript; leaving one saves the line being edited.
                     .id(session.id)
@@ -159,6 +161,7 @@ private struct SessionDetailView: View {
     let session: TranscriptSession
     let transcripts: TranscriptLibrary
     let corrections: CorrectionBook
+    let declinedSuggestions: DeclinedSuggestions
     let textSize: Double
     var isTranscribing = false
     @State private var player = TranscriptAudioPlayer()
@@ -203,6 +206,8 @@ private struct SessionDetailView: View {
                     .help("Copy the whole transcript")
             }
             .padding()
+            EditSuggestionBanner(session: session, transcripts: transcripts, corrections: corrections,
+                                 declined: declinedSuggestions)
             Divider()
             if session.lines.isEmpty {
                 ContentUnavailableView("No captions", systemImage: "text.alignleft")
@@ -635,5 +640,6 @@ private func timeString(_ date: Date) -> String { date.formatted(date: .omitted,
 #Preview {
     let services = MacCaptionEngine.makePreviewServices()
     TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
+                      declinedSuggestions: services.declinedSuggestions,
                       navigation: TranscriptNavigation(voiceNotes: services.voiceNotes))
 }

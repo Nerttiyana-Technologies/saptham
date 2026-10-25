@@ -56,8 +56,11 @@ struct SapthamMacApp: App {
         DebugSnapshots.scheduleIfRequested(extraViews: [
             ("Transcripts", CGSize(width: 1000, height: 640),
              AnyView(TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
+                                       declinedSuggestions: services.declinedSuggestions,
                                        navigation: navigation))),
-            ("Corrections", CGSize(width: 700, height: 420), AnyView(CorrectionsView(corrections: services.corrections))),
+            ("Corrections", CGSize(width: 700, height: 420),
+             AnyView(CorrectionsView(corrections: services.corrections, transcripts: services.transcripts,
+                                     declinedSuggestions: services.declinedSuggestions))),
             ("SoundAlert", CGSize(width: 1280, height: 800),
              AnyView(SoundAlertOverlay(alert: SoundAlert(kind: SoundAlertKind.all[0], confidence: 1)))),
             ("Settings", CGSize(width: 560, height: 900),
@@ -96,6 +99,7 @@ struct SapthamMacApp: App {
 
         Window("Transcripts", id: "transcripts") {
             TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
+                              declinedSuggestions: services.declinedSuggestions,
                               navigation: navigation)
                 #if DEBUG
                 .background(DemoSettingsOpener())
@@ -112,7 +116,8 @@ struct SapthamMacApp: App {
         .commands { TranscriptCommands() }
 
         Window("Corrections", id: "corrections") {
-            CorrectionsView(corrections: services.corrections)
+            CorrectionsView(corrections: services.corrections, transcripts: services.transcripts,
+                            declinedSuggestions: services.declinedSuggestions)
         }
         .defaultSize(width: 700, height: 480)
         // A scene with no rule takes any URL the app is sent, so without
