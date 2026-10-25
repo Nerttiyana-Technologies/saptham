@@ -77,3 +77,6 @@ __pycache__/
 # build and test scripts, test data. Only the product's source goes to GitHub.
 /Spikes/
 /Tools/
+
+# Private planning docs (ADRs), never pushed
+/Docs/
