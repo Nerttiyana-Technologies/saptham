@@ -21,6 +21,7 @@ All recognition runs on your device. Saptham sends no audio, transcript or analy
 - [Requirements](#requirements)
 - [Getting started](#getting-started)
 - [Building the Tamil speech model](#building-the-tamil-speech-model)
+- [Sign-language packs](#sign-language-packs)
 - [Running the tests](#running-the-tests)
 - [Architecture](#architecture)
 - [Repository layout](#repository-layout)
@@ -59,6 +60,7 @@ Saptham is built for both. It runs a Tamil speech model and Apple's English reco
 | **Corrections** | Lets you teach Saptham words it gets wrong ("when you hear *X*, show *Y*"). When you fix the same thing by hand several times, Saptham offers it as a rule. Nothing is learnt until you accept it. |
 | **Sound alerts** | Shows a glowing frame and a large card on every screen, including over full-screen apps, plus a notification that stays in Notification Center. The frame pulses below the seizure threshold, never pulses with Reduce Motion on, and lets clicks through. |
 | **Name alerts** | Listens for your name in every caption mode, and even when captions are off. It understands Tamil case endings (சுரேஷ் → சுரேஷை, சுரேஷுக்கு). |
+| **Sign dictionary** *(opt-in)* | In a saved transcript, select a word and choose **Show sign** to see a recorded Deaf signer's dictionary sign for it. On the Mac, packs come only from the Debug "Import pack from Files" option (see [Known limitations](#known-limitations)). |
 | **Capture health** | Warns when audio is arriving broken up or as pure digital silence, for example when the microphone is blocked or Safari is playing to Bluetooth hearing devices, instead of leaving the caption window silently empty. |
 
 ### On iPhone
@@ -72,6 +74,7 @@ Saptham is built for both. It runs a Tamil speech model and Apple's English reco
 | **Conversation assistant** | Ask questions about a saved conversation, or get a three-point summary, using **only** Apple's on-device language model (never Private Cloud Compute). Offered only when Apple Intelligence is available and supports the conversation's language. |
 | **Battery meter** | Measures what each captioning session actually cost in battery, for sessions of 10 minutes or more. |
 | **Sound direction** *(experimental)* | Estimates which side a voice comes from, using the stereo microphone. |
+| **Sign dictionary** *(opt-in)* | In a saved transcript, tap a word to see a recorded Deaf signer's dictionary sign for it: a silent looping clip with 0.5× speed, replay and credits, or a clear "no sign" answer. Signs are for single words only; Saptham never signs whole sentences. It's off until you turn it on in Settings → Sign language, where packs are downloaded, updated and deleted. |
 
 ### Shared engine
 
@@ -88,7 +91,8 @@ Privacy is a constraint the code is built around, not a setting you can switch o
 
 - **On-device speech only.** English uses Apple's on-device `SpeechAnalyzer` recognisers. Tamil uses a Core ML model bundled into the app and run on the device's CPU and GPU.
 - **On-device language model only.** The iPhone conversation assistant uses `SystemLanguageModel`. It never uses Private Cloud Compute.
-- **No network code.** The apps contain no analytics, telemetry, crash reporting, accounts or servers.
+- **No analytics, accounts or servers.** The apps contain no analytics, telemetry, crash reporting or accounts, and Saptham runs no server.
+- **One optional download, served by Apple.** The only network request is fetching a sign-language pack, and only when you tap Download in Settings → Sign language. Apple's asset-pack hosting serves it. The request names the pack, never a word you looked up or anything from your captions, and the signs then work offline.
 - **Logs never contain speech.** The diagnostics channel records timings and states, never caption text or audio content.
 - **Recording is opt-in.** Call recording is off by default. Recordings and transcripts stay in the app's container and expire after the retention period you choose.
 - **No third-party SDKs.** The engine uses Apple frameworks only. The one bundled third-party component is the MIT-licensed Tamil speech model (see [Acknowledgements](#acknowledgements)).
@@ -126,9 +130,10 @@ Run `xcodegen generate` again whenever you add or remove files, or change `proje
 
 `project.yml` is configured for the maintainers' Apple Developer team. To build on your own machine:
 
-1. In Xcode, select each target (**SapthamMac**, **SapthamPhone**, **SapthamLiveActivity**) and, under **Signing & Capabilities**, choose your own team.
+1. In Xcode, select each target (**SapthamMac**, **SapthamPhone**, **SapthamLiveActivity**, **SapthamSignDownloader**) and, under **Signing & Capabilities**, choose your own team.
 2. The Mac target uses manual signing with a **Developer ID Application** certificate. A stable identity means macOS keeps your microphone and audio-capture permissions across rebuilds. If you don't have a Developer ID, switch the Mac target to **Automatic** signing with an **Apple Development** certificate. Expect macOS to ask for permissions again after some rebuilds.
 3. If you build an iOS target on a free account, change the bundle identifier prefix (`com.nerttiyana.saptham`) to one of your own.
+4. The iPhone app and its sign-pack downloader share the app group `group.com.nerttiyana.saptham`. If you use your own team, replace it with a group of your own in three places that must match: `BAAppGroupID` in `Apps/iOS/Support/Info.plist`, `Apps/iOS/Support/Saptham.entitlements` and `Apps/iOS/SignDownloader/SignDownloader.entitlements`.
 
 Keep local signing changes out of commits.
 
@@ -163,6 +168,40 @@ To check the converted model against the original PyTorch model, run `build_spee
 
 The Python packages (NeMo, PyTorch, coremltools and others) are **build-time only**. Their licences are listed in [`requirements.txt`](Tools/ModelBuild/requirements.txt), and nothing from them ships in the apps.
 
+## Sign-language packs
+
+A sign pack is a folder of data for one sign language, one regional variety and one content source. It never contains code. The `SapthamSigns` package reads it.
+
+```
+ase-US-example-2027.1/
+  manifest.json   what the pack is, who made it, its licence, and the size and SHA-256 of every other file
+  entries.json    the signs, and the written word forms that reach each one
+  credits.txt     shown on the pack's Credits screen
+  LICENSE.txt     the content licence
+  media/          one silent video and poster image per sign
+```
+
+Before a pack is loaded, every file is checked against the manifest: no file missing, none extra, and every size and hash matching. A pack that fails any check is never used, and Settings offers to delete it.
+
+**Where packs come from.** The packs the apps offer are listed in [`Apps/Shared/SignPackCatalogue.json`](Apps/Shared/SignPackCatalogue.json). The catalogue is empty for now. A pack is added only once its content is licensed for this use, its signers are consenting adults, and Deaf reviewers have approved every sign.
+
+**Building and checking packs.** The `signpack` tool builds a pack from a content folder, and checks a pack the same way the app does:
+
+```bash
+cd Packages/SapthamKit
+swift run signpack build <content folder> <new pack folder>
+swift run signpack validate <pack folder>
+swift run signpack testpattern <new content folder>   # generated test clips, no person in them
+```
+
+**Delivery.** On iPhone, packs are Apple-hosted Background Assets asset packs, downloaded on demand by the `SapthamSignDownloader` extension:
+
+- **Asset pack ID:** the pack's `packId`.
+- **Layout:** the pack's files sit under a folder of the same name (`<packId>/manifest.json`, …).
+- **Local testing:** package a pack with `xcrun ba-package`, and serve it to a development build with `xcrun ba-serve`.
+
+Debug builds of both apps can also import a pack folder from Files, in Settings → **Sign packs (Debug)**. This is for development and for reviewers checking a draft pack. It's compiled out of Release builds.
+
 ## Running the tests
 
 The engine's logic lives in the `SapthamKit` Swift package, which has a unit-test suite built on Swift Testing:
@@ -178,7 +217,7 @@ If `xcode-select` points at the Command Line Tools, select Xcode for the run:
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 ```
 
-The suite covers bilingual arbitration, CTC decoding, the caption feed, capture-health and broken-audio detection, corrections and edit-pattern suggestions, name spotting (including Tamil case endings), sound-alert and sound-scene logic, the silence gate, speech tone, and voice-note import. None of it needs audio hardware, permissions or the Tamil model.
+The suites cover bilingual arbitration, CTC decoding, the caption feed, capture-health and broken-audio detection, corrections and edit-pattern suggestions, name spotting (including Tamil case endings), sound-alert and sound-scene logic, the silence gate, speech tone, voice-note import, microphone buffer copies, and sign packs: the word normaliser, pack verification, sign lookup, pack choice and listing, the catalogue, the store, and the pack builder. None of it needs audio hardware, permissions or the Tamil model.
 
 ## Architecture
 
@@ -212,6 +251,8 @@ flowchart LR
 - **Composition roots.** `MacCaptionEngine` and `PhoneCaptionEngine` are built once at launch. Views get these objects and nothing else, so a view can't reach an audio source or a recogniser.
 - **Injected collaborators.** Transcript saving, corrections, recording and language choice are passed into the engine as closures. Each can be changed, tested or removed without editing the others.
 - **One microphone on iPhone.** iOS gives an app a single audio session, so `SharedMicrophone` owns the capture and fans the same buffers out to captions, sound alerts and name alerts.
+- **Microphone buffers are copied.** An audio engine tap reuses its buffers' memory, so each buffer is copied once before it's queued for the recognisers.
+- **Sign packs are data, kept apart.** `SapthamSigns` doesn't depend on the caption engine. The apps reach it only through `SignDictionary`, and a pack can't change what the app does.
 - **Self-healing capture.** Sources recover by themselves from route changes, device switches and another app taking the input, instead of showing "listening" while hearing nothing.
 - **Pure logic, heavily tested.** Name spotting, arbitration, scene judgement, gating and corrections are plain value logic that can be tested without audio.
 - **Strict concurrency.** The project builds with `SWIFT_STRICT_CONCURRENCY: complete`. The engine's package uses the Swift 6 tools.
@@ -228,13 +269,17 @@ saptham/
 │   │   └── Support/       Info.plist, entitlements, icons, ThirdPartyNotices.txt
 │   ├── iOS/               iPhone app: reading band, posture, Live Activity
 │   │   ├── App/  Engine/  UI/  Support/
-│   │   └── LiveActivity/  widget extension (Lock Screen, Dynamic Island)
-│   └── Shared/            caption languages and audio playback used by both apps
+│   │   ├── LiveActivity/  widget extension (Lock Screen, Dynamic Island)
+│   │   └── SignDownloader/  Background Assets extension for sign-pack downloads
+│   └── Shared/            caption languages, audio playback, sign dictionary and pack catalogue
 ├── Packages/
 │   └── SapthamKit/        the caption engine (Swift package, no UI)
 │       ├── Sources/SapthamCore/      contracts, sessions, recognisers, alerts, transcripts
 │       ├── Sources/SapthamMacAudio/  Core Audio process taps (macOS only)
-│       └── Tests/SapthamCoreTests/   unit tests
+│       ├── Sources/SapthamSigns/     sign-pack format, verification, lookup and store
+│       ├── Sources/SignPackBuilder/  builds packs (used by signpack)
+│       ├── Sources/signpack/         command-line pack builder and checker
+│       └── Tests/                    unit tests for each library
 ├── Tools/
 │   └── ModelBuild/        converts the Tamil speech model to Core ML
 ├── project.yml            XcodeGen spec (generates Saptham.xcodeproj)
@@ -274,6 +319,8 @@ Debug builds of the Mac app accept `--snapshot-dir <folder>`, which writes a PNG
 - **Safari to Bluetooth hearing devices on Mac.** When Safari plays to Bluetooth hearing aids or headphones, its audio reaches every capture method as mostly digital silence, so it can't be captioned. Saptham detects this and shows a warning. Workaround: play the media in another browser or through the Mac's speakers.
 - **Singing.** Song lyrics aren't captioned reliably, so Saptham shows a music notice instead.
 - **Mac App Store.** The Mac app isn't sandboxed yet, because it hasn't been verified whether Core Audio process taps work inside the App Sandbox. It's built for Developer ID distribution.
+- **No sign packs yet.** The sign dictionary works, but no pack is offered until its content is licensed and Deaf-reviewed. Saptham isn't a sign-language interpreter and doesn't sign sentences.
+- **No sign-pack download on the Mac.** Apple-hosted packs reach only App Store and TestFlight builds, and the Mac app ships with Developer ID. Debug builds can import a pack from Files.
 - **Conversation assistant.** It depends on Apple Intelligence being available and turned on, and on the on-device model supporting the conversation's language.
 - **Sound direction** is experimental and depends on how the iPhone is held.
 
@@ -283,7 +330,8 @@ These areas are under active exploration. They aren't commitments.
 
 - Measuring Tamil word error rate on real, user-corrected transcripts
 - More Indian languages through the same windowed CTC pipeline
-- Mac App Store distribution (needs process taps verified inside the sandbox)
+- First sign-language packs: Indian Sign Language (Tamil Nadu), then ASL (US and English Canada), once their content is licensed and Deaf-reviewed
+- Mac App Store distribution (needs process taps verified inside the sandbox; would also bring sign-pack downloads to the Mac)
 - Further iPhone battery work
 
 ## Contributing
@@ -296,7 +344,8 @@ Contributions are welcome — especially from people who are deaf or hard of hea
 4. **Add tests** for engine logic in `Packages/SapthamKit/Tests`, and make sure `swift test` passes.
 5. **Name the licence of any new third-party component** in your pull request, and add its notice to `ThirdPartyNotices.txt` in the same change. Copyleft or unclear licences can't be accepted.
 6. **Use [Conventional Commits](https://www.conventionalcommits.org/)** (`feat(mac): …`, `fix(core): …`).
-7. **Accessibility is a requirement**, not an extra. Every control needs a VoiceOver label, and every feature has to respect Reduce Motion, Reduce Transparency and Increase Contrast.
+7. **Sign content needs consent and Deaf review.** Sign videos must be licensed for this use and show consenting adult signers, and Deaf reviewers must approve every sign before a pack is offered. App text never calls a sign a translation.
+8. **Accessibility is a requirement**, not an extra. Every control needs a VoiceOver label, and every feature has to respect Reduce Motion, Reduce Transparency and Increase Contrast.
 
 By contributing, you agree that your contributions are licensed under the Apache License 2.0.
 
