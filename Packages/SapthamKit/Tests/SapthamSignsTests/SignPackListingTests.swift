@@ -30,7 +30,11 @@ struct SignPackListingTests {
         let installed = [InstalledSignPack(key: "zxx-XX", pack: .success(try testPattern()))]
         let newer = pack("test-XX-pattern-2", "zxx", "XX", defaultFor: [])
         let same = pack("test-XX-pattern-1", "zxx", "XX", defaultFor: [])
-        #expect(SignPackListing.rows(catalogue: [newer], installed: installed, activeKey: nil, region: nil)[0].isUpdateAvailable)
+        let updatable = SignPackListing.rows(catalogue: [newer], installed: installed, activeKey: nil, region: nil)[0]
+        #expect(updatable.isUpdateAvailable)
+        // Update asks to fetch the new version's size, not the installed one's.
+        #expect(updatable.downloadBytes == 92_000_000)
+        #expect(updatable.bytes != updatable.downloadBytes)
         #expect(!SignPackListing.rows(catalogue: [same], installed: installed, activeKey: nil, region: nil)[0].isUpdateAvailable)
         #expect(!SignPackListing.rows(catalogue: [], installed: installed, activeKey: nil, region: nil)[0].isUpdateAvailable)
     }

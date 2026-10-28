@@ -56,7 +56,7 @@ struct SignLanguageSettingsGroup: View {
         } message: { Text("Its videos are removed from this iPhone. You can download it again later.") }
         .confirmationDialog("Download \(confirmingDownload?.name ?? "this pack")?", isPresented: Binding(
             get: { confirmingDownload != nil }, set: { if !$0 { confirmingDownload = nil } }), titleVisibility: .visible) {
-            Button("Download \(confirmingDownload?.bytes?.formatted(.byteCount(style: .file)) ?? "")") {
+            Button("Download \(confirmingDownload?.downloadBytes?.formatted(.byteCount(style: .file)) ?? "")") {
                 if let key = confirmingDownload?.key { Task { await signs.download(key) } }
             }
             Button("Cancel", role: .cancel) {}

@@ -20,6 +20,9 @@ public enum SignPackListing {
         public let state: State
         /// On disk when installed; the catalogue's download size otherwise.
         public let bytes: Int?
+        /// What Download or Update fetches: the catalogue's size, nil for a
+        /// pack the catalogue doesn't list.
+        public let downloadBytes: Int?
         public let isSuggested: Bool
         public let isActive: Bool
         /// Installed and verified, but the catalogue offers another version
@@ -73,7 +76,7 @@ public enum SignPackListing {
         case nil:
             state = .notDownloaded
         }
-        return Row(key: key, name: name, variety: variety, state: state, bytes: bytes,
+        return Row(key: key, name: name, variety: variety, state: state, bytes: bytes, downloadBytes: entry?.downloadBytes,
                    isSuggested: key == suggestedKey, isActive: key == activeKey, isUpdateAvailable: isUpdateAvailable)
     }
 }
