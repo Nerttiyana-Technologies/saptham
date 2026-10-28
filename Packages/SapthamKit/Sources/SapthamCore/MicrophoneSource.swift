@@ -77,7 +77,8 @@ public final class MicrophoneSource: AudioSource, @unchecked Sendable {
         // imports as a throwing method with a leading "__" and a vestigial
         // `error: ()` label (the NSError out-parameter is not last).
         try input.__installTap(onBus: 0, bufferSize: 4096, format: format, error: ()) { buffer, _ in
-            continuation.yield(buffer)
+            // The engine reuses the buffer's memory; queue a copy (see ownedCopy).
+            if let copy = buffer.ownedCopy() { continuation.yield(copy) }
         }
         engine.prepare()
         try engine.start()

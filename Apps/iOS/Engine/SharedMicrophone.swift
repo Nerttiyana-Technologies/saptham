@@ -124,9 +124,12 @@ final class SharedMicrophone: @unchecked Sendable {
         }
     }
 
-    /// Runs on the audio thread for every captured buffer.
+    /// Runs on the audio thread for every captured buffer. The engine reuses
+    /// the buffer's memory, so listeners get one copy between them (see
+    /// ownedCopy); they still must not modify it.
     private func share(_ buffer: AVAudioPCMBuffer) {
-        listeners.withLock { for continuation in $0.values { continuation.yield(buffer) } }
+        guard let copy = buffer.ownedCopy() else { return }
+        listeners.withLock { for continuation in $0.values { continuation.yield(copy) } }
     }
 
     /// Caller holds `control`.
