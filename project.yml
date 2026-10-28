@@ -121,3 +121,27 @@ targets:
         CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.0"
         SKIP_INSTALL: YES
+# Fixed, shared schemes, so regenerating the project never leaves Xcode
+# without them (a regeneration on 2026-10-29 left only the Live Activity
+# extension's auto-created scheme selected, which can't be run on its own).
+schemes:
+  SapthamPhone:
+    build:
+      targets:
+        SapthamPhone: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    archive:
+      config: Release
+  SapthamMac:
+    build:
+      targets:
+        SapthamMac: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    archive:
+      config: Release
