@@ -16,6 +16,8 @@ struct PhoneAppServices {
     let battery: BatteryMeter
     /// Which side voices come from (experimental; see PhoneSettings).
     let direction: SoundDirection
+    /// Sign-language dictionary packs (ADR 0003); hidden while none is installed.
+    let signs: SignDictionary
 }
 
 /// Composition root for the iPhone app: the only place that knows which
@@ -68,7 +70,8 @@ enum PhoneCaptionEngine {
                                     makeTranscriber: CaptionRecognisers.makeTranscriber)
         return PhoneAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
                                 voiceNotes: voiceNotes, alerts: alerts, assistant: ConversationAssistant(),
-                                battery: BatteryMeter(), direction: SoundDirection(microphone: microphone))
+                                battery: BatteryMeter(), direction: SoundDirection(microphone: microphone),
+                                signs: SignDictionary(dataFolder: dataFolder, downloader: AppleHostedSignPackDownloader()))
     }
 
     /// Applies the "keep transcripts for" setting.
@@ -139,6 +142,7 @@ extension PhoneCaptionEngine {
         return PhoneAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
                                 voiceNotes: voiceNotes, alerts: PhoneAlerts(microphone: microphone),
                                 assistant: ConversationAssistant(), battery: BatteryMeter(),
-                                direction: SoundDirection(microphone: microphone))
+                                direction: SoundDirection(microphone: microphone),
+                                signs: SignDictionary(dataFolder: FileManager.default.temporaryDirectory))
     }
 }

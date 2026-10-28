@@ -1,0 +1,155 @@
+[
+  {
+    "idGloss" : "WATER",
+    "lemmaId" : "WATER",
+    "media" : {
+      "durationMs" : 1200,
+      "file" : "media/water.mp4",
+      "loop" : true,
+      "poster" : "media/water.jpg"
+    },
+    "reviewStatus" : "approved",
+    "senses" : [
+      {
+        "forms" : [
+          {
+            "lang" : "en",
+            "text" : [
+              "water",
+              "waters"
+            ]
+          },
+          {
+            "lang" : "ta",
+            "text" : [
+              "தண்ணீர்",
+              "தண்ணி",
+              "வாட்டர்"
+            ]
+          }
+        ],
+        "note" : "drinking water"
+      }
+    ],
+    "signerCredit" : "Generated test pattern",
+    "signerId" : "TP"
+  },
+  {
+    "idGloss" : "HELLO",
+    "lemmaId" : "HELLO",
+    "media" : {
+      "durationMs" : 1200,
+      "file" : "media/hello.mp4",
+      "loop" : true,
+      "poster" : "media/hello.jpg"
+    },
+    "reviewStatus" : "approved",
+    "senses" : [
+      {
+        "forms" : [
+          {
+            "lang" : "en",
+            "text" : [
+              "hello",
+              "hi"
+            ]
+          },
+          {
+            "lang" : "ta",
+            "text" : [
+              "ஹலோ",
+              "வணக்கம்"
+            ]
+          }
+        ],
+        "note" : "greeting"
+      }
+    ],
+    "signerCredit" : "Generated test pattern",
+    "signerId" : "TP"
+  },
+  {
+    "idGloss" : "BANK",
+    "lemmaId" : "BANK",
+    "media" : {
+      "durationMs" : 1200,
+      "file" : "media/bank.mp4",
+      "loop" : true,
+      "poster" : "media/bank.jpg"
+    },
+    "reviewStatus" : "approved",
+    "senses" : [
+      {
+        "forms" : [
+          {
+            "lang" : "en",
+            "text" : [
+              "bank"
+            ]
+          },
+          {
+            "lang" : "ta",
+            "text" : [
+              "பேங்க்",
+              "வங்கி"
+            ]
+          }
+        ],
+        "note" : "money"
+      },
+      {
+        "forms" : [
+          {
+            "lang" : "en",
+            "text" : [
+              "bank",
+              "riverbank"
+            ]
+          },
+          {
+            "lang" : "ta",
+            "text" : [
+              "கரை"
+            ]
+          }
+        ],
+        "note" : "river"
+      }
+    ],
+    "signerCredit" : "Generated test pattern",
+    "signerId" : "TP"
+  },
+  {
+    "idGloss" : "TEA",
+    "lemmaId" : "TEA",
+    "media" : {
+      "durationMs" : 1200,
+      "file" : "media/tea.mp4",
+      "loop" : true,
+      "poster" : "media/tea.jpg"
+    },
+    "reviewStatus" : "draft",
+    "senses" : [
+      {
+        "forms" : [
+          {
+            "lang" : "en",
+            "text" : [
+              "tea"
+            ]
+          },
+          {
+            "lang" : "ta",
+            "text" : [
+              "டீ",
+              "தேநீர்"
+            ]
+          }
+        ],
+        "note" : "drink"
+      }
+    ],
+    "signerCredit" : "Generated test pattern",
+    "signerId" : "TP"
+  }
+]

@@ -104,5 +104,14 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<!-- Sign-language packs from Apple's asset-pack hosting (ADR 0003,
+	     P10-S10). Hidden coupling: BAAppGroupID must match the app group in
+	     Saptham.entitlements and SignDownloader.entitlements. -->
+	<key>BAAppGroupID</key>
+	<string>group.com.nerttiyana.saptham</string>
+	<key>BAHasManagedAssetPacks</key>
+	<true/>
+	<key>BAUsesAppleHosting</key>
+	<true/>
 </dict>
 </plist>

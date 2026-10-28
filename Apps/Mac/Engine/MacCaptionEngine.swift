@@ -14,6 +14,8 @@ struct MacAppServices {
     let voiceNotes: VoiceNotes
     /// The app sets `onAlert` once it can show alerts.
     let nameAlerts: NameAlerts
+    /// Installed sign-language packs (ADR 0003); empty in demo mode.
+    let signs: SignDictionary
     /// Hears the room for name alerts in every caption mode; nil in demo mode,
     /// which never opens the microphone. The app calls `start()`.
     var nameListener: NameListener? = nil
@@ -108,7 +110,8 @@ enum MacCaptionEngine {
                                     languageID: { captions.activeLanguageID },
                                     makeTranscriber: makeTranscriber)
         return MacAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
-                              declinedSuggestions: declinedSuggestions, voiceNotes: voiceNotes, nameAlerts: nameAlerts, nameListener: nameListener)
+                              declinedSuggestions: declinedSuggestions, voiceNotes: voiceNotes, nameAlerts: nameAlerts,
+                              signs: SignDictionary(dataFolder: dataFolder), nameListener: nameListener)
     }
 
     nonisolated static func makeTranscriber(_ language: CaptionLanguageOption.ID) -> SpeechTranscribing {
@@ -171,6 +174,7 @@ extension MacCaptionEngine {
                                     languageID: { LanguageID.tamilAndEnglish }, makeTranscriber: makeTranscriber)
         return MacAppServices(captions: PreviewCaptionController(), transcripts: transcripts, corrections: corrections,
                               declinedSuggestions: DeclinedSuggestions(fileURL: folder.appendingPathComponent("declined-suggestions.json")),
-                              voiceNotes: voiceNotes, nameAlerts: NameAlerts(sourceIDs: [], names: { "" }))
+                              voiceNotes: voiceNotes, nameAlerts: NameAlerts(sourceIDs: [], names: { "" }),
+                              signs: SignDictionary(dataFolder: folder))
     }
 }

@@ -57,7 +57,8 @@ struct SapthamMacApp: App {
             ("Transcripts", CGSize(width: 1000, height: 640),
              AnyView(TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
                                        declinedSuggestions: services.declinedSuggestions,
-                                       navigation: navigation))),
+                                       navigation: navigation)
+                        .environment(services.signs))),
             ("Corrections", CGSize(width: 700, height: 420),
              AnyView(CorrectionsView(corrections: services.corrections, transcripts: services.transcripts,
                                      declinedSuggestions: services.declinedSuggestions))),
@@ -101,6 +102,7 @@ struct SapthamMacApp: App {
             TranscriptsWindow(transcripts: services.transcripts, corrections: services.corrections,
                               declinedSuggestions: services.declinedSuggestions,
                               navigation: navigation)
+                .environment(services.signs)
                 #if DEBUG
                 .background(DemoSettingsOpener())
                 #endif
@@ -127,7 +129,7 @@ struct SapthamMacApp: App {
 
         Settings {
             SapthamSettingsView(transcripts: services.transcripts, soundAlerts: soundAlerts,
-                                nameListener: services.nameListener,
+                                nameListener: services.nameListener, signs: services.signs,
                                 alertsTurnedOn: alertPresenter.requestNotificationPermission)
         }
     }

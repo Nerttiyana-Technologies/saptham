@@ -41,7 +41,7 @@ struct LiveBandView: View {
                 live
                     .transition(.opacity)
             } else {
-                HorizonView(languageID: captions.activeLanguageID, onStart: start)
+                HorizonView(languageID: captions.activeLanguageID, onStart: start, onSettings: onSettings)
                     .transition(.opacity)
             }
         }
@@ -225,6 +225,8 @@ struct LiveBandView: View {
 private struct HorizonView: View {
     let languageID: String
     let onStart: () -> Void
+    /// The band's tuner glyph, so Settings opens before the first caption.
+    let onSettings: () -> Void
     @State private var pulled: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var breathe = false
@@ -243,6 +245,13 @@ private struct HorizonView: View {
                     .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(Monsoon.ink3)
                     .padding(.leading, 22)
+            }
+            .overlay(alignment: .topTrailing) {
+                Button(action: onSettings) { TunerGlyph() }
+                    .buttonStyle(.glyph)
+                    .accessibilityLabel("Settings")
+                    .padding(.trailing, 10)
+                    .offset(y: -48)
             }
             .offset(y: pulled)
             Button(action: onStart) {

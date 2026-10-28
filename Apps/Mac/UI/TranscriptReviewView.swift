@@ -13,6 +13,8 @@ struct TranscriptReviewView: View {
     @State private var query = ""
     @State private var pendingDeletion: TranscriptSession.ID?
     @State private var confirmsDeletion = false
+    /// Injected by the app; nil where no sign packs exist (previews).
+    @Environment(SignDictionary.self) private var signs: SignDictionary?
 
     private var filteredSessions: [TranscriptSession] {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return transcripts.sessions }
@@ -75,6 +77,8 @@ struct TranscriptReviewView: View {
             if !sessions.contains(where: { $0.id == selectedSessionID }) { selectedSessionID = sessions.first?.id }
         }
         .onAppear { selectedSessionID = selectedSessionID ?? transcripts.sessions.first?.id }
+        // Opening a pack hashes it, so do it once here, not when a word is picked.
+        .task { await signs?.load() }
         .onChange(of: query) { _, _ in
             if !filteredSessions.contains(where: { $0.id == selectedSessionID }) {
                 selectedSessionID = filteredSessions.first?.id
@@ -350,6 +354,10 @@ private struct TranscriptLineRow: View {
     @State private var accessibleEditorOpen = false
     @State private var replacement = ""
     @State private var replacementSelection: TextSelection?
+    /// Injected by the app; nil where no sign packs exist (previews).
+    @Environment(SignDictionary.self) private var signs: SignDictionary?
+    /// The picked words whose sign is showing.
+    @State private var signWord: String?
 
     private var display: String { line.displayText(using: corrections.corrector) }
     private var editsWholeLine: Bool { lineEditorOpen || accessibleEditorOpen }
@@ -508,6 +516,11 @@ private struct TranscriptLineRow: View {
             HStack {
                 Button("Cancel") { closeEditors() }
                     .keyboardShortcut(.cancelAction)
+                if !wholeLine, signs?.isAvailable == true {
+                    Button("Show sign", systemImage: "hand.raised") { signWord = selectedPhrase }
+                        .help("Show the sign for \u{201C}\(selectedPhrase)\u{201D}")
+                        .accessibilityLabel("Show sign for \(selectedPhrase)")
+                }
                 Spacer()
                 if !wholeLine {
                     // The whole line is rewritten otherwise, and a rule
@@ -529,6 +542,9 @@ private struct TranscriptLineRow: View {
             fieldFocused = true
         }
         .onKeyPress(.escape) { closeEditors(); return .handled }
+        .sheet(isPresented: Binding(get: { signWord != nil }, set: { if !$0 { signWord = nil } })) {
+            if let signWord, let signs { SignSheet(word: signWord, dictionary: signs) }
+        }
     }
 
     @FocusState private var fieldFocused: Bool

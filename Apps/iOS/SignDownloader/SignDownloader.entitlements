@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Shared with the app for sign-pack downloads (ADR 0003, P10-S10).
+	     Must match BAAppGroupID in Apps/iOS/Support/Info.plist. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.nerttiyana.saptham</string>
+	</array>
+</dict>
+</plist>

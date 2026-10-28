@@ -7,6 +7,8 @@ struct SapthamSettingsView: View {
     let soundAlerts: SoundAlertListener
     /// Nil in demo mode.
     var nameListener: NameListener? = nil
+    /// Nil in previews.
+    var signs: SignDictionary? = nil
     /// Asked when the user turns alerts on (notification permission).
     var alertsTurnedOn: () -> Void = {}
     @AppStorage(SapthamSettings.soundAlerts) private var alertsOn = SapthamSettings.soundAlertsDefault
@@ -90,6 +92,12 @@ struct SapthamSettingsView: View {
                     NSWorkspace.shared.activateFileViewerSelecting([folder])
                 }
             }
+            if let signs { SignLanguageSettingsSection(signs: signs) }
+            #if DEBUG
+            Section("Sign packs (Debug)") {
+                DebugSignPackSection(folder: MacCaptionEngine.dataFolder.appending(path: SignDictionary.folderName), showsTitle: false)
+            }
+            #endif
             Section("About") {
                 Button("Third-party notices…", systemImage: "doc.text") { showsNotices = true }
                 Text("Tamil captions use AI4Bhārat's IndicConformer speech model, running on this Mac.")

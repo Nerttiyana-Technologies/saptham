@@ -16,6 +16,8 @@ struct ReplayView: View {
     @State private var query = ""
     @State private var correctingWord: String?
     @State private var correctionText = ""
+    /// The word whose sign the word sheet is showing instead of corrections.
+    @State private var signWord: String?
     @State private var fileImporterOpen = false
     @State private var importError: String?
     @State private var pendingDelete = false
@@ -99,8 +101,17 @@ struct ReplayView: View {
         }
         .sheet(item: Binding<CorrectionWord?>(get: { correctingWord.map { CorrectionWord(word: $0) } },
                                               set: { correctingWord = $0?.word })) { item in
-            correctionSheet(word: item.word).presentationBackground(.clear)
+            Group {
+                if signWord == item.word {
+                    SignSheetView(word: item.word, dictionary: services.signs) { signWord = nil; correctingWord = nil }
+                } else {
+                    correctionSheet(word: item.word)
+                }
+            }
+            .presentationBackground(.clear)
         }
+        .onChange(of: correctingWord) { _, _ in signWord = nil }
+        .task { await services.signs.load() }
         .onDisappear { player.stop() }
     }
 
@@ -466,6 +477,13 @@ struct ReplayView: View {
             }
             HStack {
                 correctionAction(symbol: "text.line.first.and.arrowtriangle.forward", caption: "this line", label: "Correct only this line") { applyLineCorrection(word: word) }
+                Spacer()
+                if services.signs.isAvailable {
+                    Spacer()
+                    // Shown for every word, so "no sign" is an answer, not a
+                    // missing button (owner decision, 2026-10-29).
+                    correctionAction(symbol: "hand.raised", caption: "sign", label: "Show sign for \(word)") { signWord = word }
+                }
                 Spacer()
                 correctionAction(symbol: "checkmark", caption: "everywhere", label: "Correct everywhere") {
                     services.corrections.add(heard: word, replacement: correctionText); correctingWord = nil
