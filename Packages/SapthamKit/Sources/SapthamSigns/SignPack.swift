@@ -204,4 +204,7 @@ public enum SignPackError: Error, Equatable, Sendable {
     case damaged(String)
     /// Absolute, escapes the pack folder, listed twice, or a symbolic link.
     case unsafePath(String)
+    /// The catalogue lists this pack ID, language and region, or suggested
+    /// region more than once.
+    case duplicateCatalogueEntry(String)
 }
