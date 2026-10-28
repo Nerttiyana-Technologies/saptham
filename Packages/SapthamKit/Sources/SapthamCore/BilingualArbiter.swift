@@ -19,6 +19,12 @@ import Foundation
 /// cover most of the group, otherwise the primary's. Provisional words
 /// follow whichever recogniser won the latest group.
 ///
+/// A line waiting to be decided is shown as provisional words, in front of
+/// the words still being said, and the provisional words are re-sent after
+/// every decision: otherwise a waiting line was on screen nowhere for up to
+/// `settleAfter`, and the decided line then cleared the words still being
+/// said (seen on iPhone 2026-10-28, in a continuous conversation).
+///
 /// A whole English sentence the secondary is very sure of is decided the
 /// moment it arrives (`earlyConfidence`, `earlyWords`): otherwise the
 /// primary's Tamil-script guess stayed on screen for seconds before the
@@ -72,6 +78,10 @@ public struct BilingualArbiter {
     private var decidedUpTo: Double = -.infinity
     /// The furthest each side's settled lines reach.
     private var reached: [Side: Double] = [:]
+    /// Each side's latest words not yet settled by that recogniser.
+    private var volatileText: [Side: String] = [:]
+    /// The provisional words last sent, so unchanged ones are not re-sent.
+    private var sentProvisional = ""
 
     public init(configuration: Configuration = Configuration()) {
         self.configuration = configuration
@@ -80,9 +90,12 @@ public struct BilingualArbiter {
     /// Takes one recogniser's update; returns what to show now.
     public mutating func add(_ update: TranscriptUpdate, from side: Side, at now: Date) -> [TranscriptUpdate] {
         switch update {
-        case .volatile:
-            return side == showing ? [update] : []
+        case .volatile(let text):
+            volatileText[side] = text
+            return side == showing ? provisionalUpdate() : []
         case .final(let text, let span, let score):
+            // A recogniser's settled line replaces its provisional words.
+            volatileText[side] = ""
             let confidence = score?.confidence
             guard let span else {
                 Diagnostics.engine.info("bilingual: line without timing from \(side == .primary ? "primary" : "secondary", privacy: .public), sure \(confidence ?? -1, privacy: .public)")
@@ -124,7 +137,23 @@ public struct BilingualArbiter {
             decidedUpTo = max(decidedUpTo, group.map(\.span.end).max()!)
             updates += choose(group)
         }
-        return updates
+        // CaptionFeed clears its provisional words on every final line.
+        if !updates.isEmpty { sentProvisional = "" }
+        return updates + provisionalUpdate()
+    }
+
+    /// The shown side's waiting lines followed by its words still being
+    /// said, if that differs from what was last sent. A decided line clears
+    /// the screen's provisional words, so after one they are always re-sent.
+    private mutating func provisionalUpdate() -> [TranscriptUpdate] {
+        let waiting = pending.filter { $0.side == showing }.sorted { $0.span.start < $1.span.start }.map(\.text)
+        let text = (waiting + [volatileText[showing] ?? ""])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard text != sentProvisional else { return [] }
+        sentProvisional = text
+        return [.volatile(text)]
     }
 
     /// The earliest group of overlapping lines.

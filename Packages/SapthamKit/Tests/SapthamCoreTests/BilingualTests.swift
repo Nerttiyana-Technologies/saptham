@@ -117,6 +117,35 @@ struct BilingualArbiterTests {
         #expect(arbiter.add(.volatile("How are"), from: .secondary, at: at(3)) == [.volatile("How are")])
         #expect(arbiter.add(.volatile("ஹவ் ஆர்"), from: .primary, at: at(3)).isEmpty)
     }
+
+    // Seen on iPhone 2026-10-28, in conversation: while a settled line waited
+    // to be decided, its words were neither provisional nor shown, so text
+    // vanished for up to `settleAfter` and came back as a line.
+
+    @Test func aWaitingLineStaysOnScreenAsProvisionalWords() {
+        var arbiter = BilingualArbiter()
+        _ = arbiter.add(.volatile("வணக்கம் எப்படி"), from: .primary, at: at(0.5))
+        // The Tamil decoder settles the first word; the arbiter holds it.
+        let held = arbiter.add(line("வணக்கம்", 0, 1, 0.9), from: .primary, at: at(1))
+        #expect(texts(held).isEmpty)
+        #expect(held.last == .volatile("வணக்கம்"))
+        // She keeps talking: the held words stay in front of the new ones.
+        #expect(arbiter.add(.volatile("எப்படி இருக்கீங்க"), from: .primary, at: at(1.3))
+                == [.volatile("வணக்கம் எப்படி இருக்கீங்க")])
+    }
+
+    @Test func decidingALineKeepsTheWordsStillBeingSaid() {
+        var arbiter = BilingualArbiter()
+        _ = arbiter.add(line("வணக்கம்", 0, 1, 0.9), from: .primary, at: at(1))
+        _ = arbiter.add(.volatile("எப்படி இருக்கீங்க"), from: .primary, at: at(1.3))
+        // The line is decided while speech goes on: the provisional words
+        // are re-sent after it, so showing the line does not wipe them.
+        let decided = arbiter.tick(at: at(3.1))
+        #expect(texts(decided) == ["வணக்கம்"])
+        #expect(decided.last == .volatile("எப்படி இருக்கீங்க"))
+        // Nothing new: nothing re-sent.
+        #expect(arbiter.tick(at: at(3.4)).isEmpty)
+    }
 }
 
 struct BilingualTranscriberTests {
