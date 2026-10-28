@@ -129,7 +129,7 @@ struct SapthamMacApp: App {
 
         Settings {
             SapthamSettingsView(transcripts: services.transcripts, soundAlerts: soundAlerts,
-                                nameListener: services.nameListener,
+                                nameListener: services.nameListener, signs: services.signs,
                                 alertsTurnedOn: alertPresenter.requestNotificationPermission)
         }
     }

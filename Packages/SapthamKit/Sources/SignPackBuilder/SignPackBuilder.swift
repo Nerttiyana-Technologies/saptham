@@ -211,7 +211,7 @@ public enum SignPackBuilder {
         Signers:
         \(signers.joined(separator: "\n"))
 
-        Dictionary signs, not a translation.
+        Dictionary signs for single words only.
 
         """
     }

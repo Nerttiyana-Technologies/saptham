@@ -87,7 +87,7 @@ struct SignSheet: View {
                 .font(.body.weight(.semibold))
             Text(pack.manifest.signLanguageName).foregroundStyle(.secondary)
             Text(match.entry.signerCredit).foregroundStyle(.secondary)
-            Text("Dictionary sign, not a translation.").font(.caption).foregroundStyle(.tertiary)
+            Text("A dictionary sign for this word only.").font(.caption).foregroundStyle(.tertiary)
         }
         HStack(spacing: 14) {
             Button { slow.toggle() } label: {
@@ -120,7 +120,7 @@ struct SignSheet: View {
 }
 
 /// A pack's own credits.txt, as the pack ships it (ADR 0003 §2.8).
-private struct SignPackCreditsSheet: View {
+struct SignPackCreditsSheet: View {
     let pack: SignPack
     @Environment(\.dismiss) private var dismiss
 

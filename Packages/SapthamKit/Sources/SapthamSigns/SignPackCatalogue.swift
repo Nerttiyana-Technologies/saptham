@@ -58,6 +58,13 @@ public struct SignPackCatalogue: Codable, Equatable, Sendable {
         return try encoder.encode(self)
     }
 
+    /// The pack suggested for a region (ADR 0003 §2.7), such as
+    /// `Locale.current.region?.identifier`; nil when none is.
+    public static func suggested(from packs: [Pack], forRegion region: String?) -> Pack? {
+        guard let region = region?.uppercased() else { return nil }
+        return packs.first { $0.defaultForRegions.map { $0.uppercased() }.contains(region) }
+    }
+
     /// One pack per ID and per sign language and region, and at most one pack
     /// suggested for any region, so the suggestion is never ambiguous.
     private func validate() throws {

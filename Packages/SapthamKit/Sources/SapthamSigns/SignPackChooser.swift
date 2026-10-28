@@ -37,8 +37,7 @@ public struct SignPackChooser: Sendable {
 
     /// The pack suggested for a region, such as `Locale.current.region?.identifier`.
     public func suggested(forRegion region: String?) -> SignPackCatalogue.Pack? {
-        guard let region = region?.uppercased() else { return nil }
-        return catalogue.packs.first { $0.defaultForRegions.map { $0.uppercased() }.contains(region) }
+        SignPackCatalogue.suggested(from: catalogue.packs, forRegion: region)
     }
 
     public func activePack(region: String?) -> SignPackCatalogue.Pack? {
