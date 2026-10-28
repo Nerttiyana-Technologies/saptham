@@ -136,52 +136,41 @@ private struct SignClipView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(clip: clip) }
 
     func makeUIView(context: Context) -> ClipUIView {
-        let coordinator = context.coordinator
+        let clip = context.coordinator.clip
         let view = ClipUIView()
-        view.playerLayer.player = coordinator.player
+        view.playerLayer.player = clip.player
         view.poster.image = poster.flatMap { UIImage(contentsOfFile: $0.path(percentEncoded: false)) }
-        coordinator.rate = rate
-        view.onPlay = { [weak coordinator, weak view] in
+        clip.rate = rate
+        view.onPlay = { [weak clip, weak view] in
             view?.showsPoster = false
-            coordinator?.play()
+            clip?.play()
         }
         view.showsPoster = !autoplay
-        if autoplay { coordinator.play() }
+        if autoplay { clip.play() }
         return view
     }
 
     func updateUIView(_ view: ClipUIView, context: Context) {
         let coordinator = context.coordinator
-        coordinator.rate = rate
+        coordinator.clip.rate = rate
         if coordinator.replays != replays {
             coordinator.replays = replays
             view.showsPoster = false
-            coordinator.player.seek(to: .zero)
-            coordinator.play()
-        } else if coordinator.player.rate != 0, coordinator.player.rate != rate {
-            coordinator.play()
+            coordinator.clip.restart()
         }
     }
 
     static func dismantleUIView(_ view: ClipUIView, coordinator: Coordinator) {
-        coordinator.player.pause()
+        coordinator.clip.pause()
     }
 
+    @MainActor
     final class Coordinator {
-        let player = AVQueuePlayer()
-        private let looper: AVPlayerLooper
+        let clip: SignClipPlayer
         var replays = 0
-        /// The speed the user chose; read when playback starts or restarts.
-        var rate: Float = 1
 
         init(clip: URL) {
-            player.isMuted = true
-            looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: clip))
-        }
-
-        func play() {
-            player.defaultRate = rate
-            player.rate = rate
+            self.clip = SignClipPlayer(clip: clip)
         }
     }
 
