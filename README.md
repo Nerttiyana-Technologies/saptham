@@ -306,7 +306,7 @@ Please **don't** report security vulnerabilities in public issues. Use GitHub's 
 
 ## License
 
-Copyright 2026 Nerttiyana Technologies.
+Copyright 2026 Suresh Subramanian.
 
 Saptham is licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE) for the attribution notice that has to accompany redistributions.
 
