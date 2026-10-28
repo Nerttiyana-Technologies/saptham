@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SapthamSigns
+import os
 
 /// Fetches a catalogue pack and returns the folder it landed in, for
 /// `SignPackStore` to verify and install. The iPhone app passes
@@ -28,6 +29,10 @@ final class SignDictionary {
     static let packsChanged = Notification.Name("SapthamSignPacksChanged")
     /// The Settings switch. Off until the user turns it on (ADR 0003 §2.7).
     static let enabledKey = "signs.enabled"
+    /// Why a download or install failed: the pack ID and the system's error,
+    /// never a word the user looked up. Read with:
+    ///   log stream --predicate 'subsystem == "com.nerttiyana.saptham" AND category == "signs"'
+    private static let log = Logger(subsystem: "com.nerttiyana.saptham", category: "signs")
 
     /// Nil when no valid pack is installed.
     private(set) var activePack: SignPack?
@@ -115,8 +120,10 @@ final class SignDictionary {
             await downloader.discardDownload(of: pack)
             announceChange()
         } catch let error as SignPackError {
+            Self.log.error("Sign pack \(pack.packId, privacy: .public) failed verification: \(String(describing: error), privacy: .public)")
             problem = error.userMessage
         } catch {
+            Self.log.error("Sign pack \(pack.packId, privacy: .public) download failed: \(String(describing: error), privacy: .public)")
             problem = "Couldn't download \(pack.signLanguageName). Check the connection and try again."
         }
     }
