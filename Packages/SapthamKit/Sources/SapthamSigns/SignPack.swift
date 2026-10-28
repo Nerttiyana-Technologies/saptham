@@ -33,10 +33,37 @@ public struct SignPackManifest: Codable, Equatable, Sendable {
     /// Every other file in the pack, with its hash and size.
     public let files: [File]
 
+    public init(formatVersion: Int, packId: String, signLanguage: String, signLanguageName: String, variety: String,
+                region: String, defaultForRegions: [String], headwordLanguages: [String], normaliserVersion: Int,
+                source: Source, licence: Licence, contentUse: ContentUse, review: Review?, version: String,
+                minAppVersion: String, files: [File]) {
+        self.formatVersion = formatVersion
+        self.packId = packId
+        self.signLanguage = signLanguage
+        self.signLanguageName = signLanguageName
+        self.variety = variety
+        self.region = region
+        self.defaultForRegions = defaultForRegions
+        self.headwordLanguages = headwordLanguages
+        self.normaliserVersion = normaliserVersion
+        self.source = source
+        self.licence = licence
+        self.contentUse = contentUse
+        self.review = review
+        self.version = version
+        self.minAppVersion = minAppVersion
+        self.files = files
+    }
+
     public struct Source: Codable, Equatable, Sendable {
         public let organisation: String
         /// `commissioned` or `licensed`.
         public let kind: String
+
+        public init(organisation: String, kind: String) {
+            self.organisation = organisation
+            self.kind = kind
+        }
     }
 
     public struct Licence: Codable, Equatable, Sendable {
@@ -44,12 +71,22 @@ public struct SignPackManifest: Codable, Equatable, Sendable {
         public let id: String
         /// Path of the licence text inside the pack.
         public let file: String
+
+        public init(id: String, file: String) {
+            self.id = id
+            self.file = file
+        }
     }
 
     public struct Review: Codable, Equatable, Sendable {
         public let panel: String
         /// ISO date, `yyyy-MM-dd`.
         public let signedOff: String
+
+        public init(panel: String, signedOff: String) {
+            self.panel = panel
+            self.signedOff = signedOff
+        }
     }
 
     public struct File: Codable, Equatable, Sendable {
@@ -58,6 +95,12 @@ public struct SignPackManifest: Codable, Equatable, Sendable {
         /// Lowercase hex SHA-256.
         public let sha256: String
         public let bytes: Int
+
+        public init(path: String, sha256: String, bytes: Int) {
+            self.path = path
+            self.sha256 = sha256
+            self.bytes = bytes
+        }
     }
 
     /// Reads a manifest, checking `formatVersion` before anything else, since
@@ -129,6 +172,20 @@ public struct SignEntry: Codable, Equatable, Sendable {
     public let clipLicence: String?
     public let reviewStatus: ReviewStatus
 
+    public init(idGloss: String, lemmaId: String, variantOf: String?, regionalTag: String?, senses: [SignSense],
+                media: SignMedia, signerId: String, signerCredit: String, clipLicence: String?, reviewStatus: ReviewStatus) {
+        self.idGloss = idGloss
+        self.lemmaId = lemmaId
+        self.variantOf = variantOf
+        self.regionalTag = regionalTag
+        self.senses = senses
+        self.media = media
+        self.signerId = signerId
+        self.signerCredit = signerCredit
+        self.clipLicence = clipLicence
+        self.reviewStatus = reviewStatus
+    }
+
     /// Reads `entries.json`.
     public static func decodeAll(_ data: Data) throws -> [SignEntry] {
         do { return try JSONDecoder().decode([SignEntry].self, from: data) } catch {
@@ -143,10 +200,20 @@ public struct SignSense: Codable, Equatable, Sendable {
     public let note: String?
     public let forms: [Forms]
 
+    public init(note: String?, forms: [Forms]) {
+        self.note = note
+        self.forms = forms
+    }
+
     public struct Forms: Codable, Equatable, Sendable {
         /// BCP 47 language, for example `en`, `ta`.
         public let lang: String
         public let text: [String]
+
+        public init(lang: String, text: [String]) {
+            self.lang = lang
+            self.text = text
+        }
     }
 }
 
@@ -156,6 +223,13 @@ public struct SignMedia: Codable, Equatable, Sendable {
     public let poster: String?
     public let durationMs: Int
     public let loop: Bool
+
+    public init(file: String, poster: String?, durationMs: Int, loop: Bool) {
+        self.file = file
+        self.poster = poster
+        self.durationMs = durationMs
+        self.loop = loop
+    }
 }
 
 /// Where a sign is in the Deaf panel's review. Only `approved` signs are shown.
@@ -166,14 +240,17 @@ public enum ReviewStatus: Codable, Equatable, Sendable {
     /// A status this app doesn't know; treated as not approved.
     case unrecognised(String)
 
-    public init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
+    public init(raw: String) {
         switch raw {
         case "approved": self = .approved
         case "draft": self = .draft
         case "rejected": self = .rejected
         default: self = .unrecognised(raw)
         }
+    }
+
+    public init(from decoder: Decoder) throws {
+        self.init(raw: try decoder.singleValueContainer().decode(String.self))
     }
 
     public func encode(to encoder: Encoder) throws {

@@ -8,6 +8,8 @@
 //                    app's audio, or all system audio (Core Audio process taps).
 //   SapthamSigns     sign-language dictionary packs: read, verify, look up a
 //                    word (ADR 0003). Independent of SapthamCore on purpose.
+//   SignPackBuilder  builds a pack from a content folder; used by the
+//                    `signpack` command-line tool, never by the apps.
 //
 // Apple frameworks only. Every third-party addition needs its licence named
 // and its notice added in the same change.
@@ -26,9 +28,15 @@ let package = Package(
         .target(name: "SapthamMacAudio", dependencies: ["SapthamCore"],
                 swiftSettings: [.swiftLanguageMode(.v5)]),
         .target(name: "SapthamSigns", swiftSettings: [.swiftLanguageMode(.v5)]),
+        .target(name: "SignPackBuilder", dependencies: ["SapthamSigns"],
+                swiftSettings: [.swiftLanguageMode(.v5)]),
+        .executableTarget(name: "signpack", dependencies: ["SignPackBuilder", "SapthamSigns"],
+                          swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "SapthamCoreTests", dependencies: ["SapthamCore"],
                     swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "SapthamSignsTests", dependencies: ["SapthamSigns"],
+                    swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "SignPackBuilderTests", dependencies: ["SignPackBuilder", "SapthamSigns"],
                     swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )

@@ -21,16 +21,16 @@ public struct SignPack: Sendable {
 ///
 /// Reads every byte of the pack, so call it off the main actor.
 public enum SignPackReader {
-    static let manifestFile = "manifest.json"
-    static let entriesFile = "entries.json"
+    public static let manifestFileName = "manifest.json"
+    public static let entriesFileName = "entries.json"
     /// Finder writes these into any folder it shows; a reviewer opening a
     /// draft pack on a Mac shouldn't break it. Never read.
     static let ignoredNames: Set<String> = [".DS_Store"]
 
     public static func open(_ folder: URL) throws -> SignPack {
-        let manifestURL = folder.appending(path: manifestFile, directoryHint: .notDirectory)
+        let manifestURL = folder.appending(path: manifestFileName, directoryHint: .notDirectory)
         guard let manifestData = try? Data(contentsOf: manifestURL) else {
-            throw SignPackError.missingFile(manifestFile)
+            throw SignPackError.missingFile(manifestFileName)
         }
         let manifest = try SignPackManifest.decode(manifestData)
         guard manifest.normaliserVersion == SignWordNormaliser.version else {
@@ -39,7 +39,7 @@ public enum SignPackReader {
 
         var listed: [String: SignPackManifest.File] = [:]
         for file in manifest.files {
-            guard isSafe(file.path), file.path != manifestFile, listed[file.path] == nil else {
+            guard isSafe(file.path), file.path != manifestFileName, listed[file.path] == nil else {
                 throw SignPackError.unsafePath(file.path)
             }
             listed[file.path] = file
@@ -56,8 +56,8 @@ public enum SignPackReader {
             try verify(file, in: folder)
         }
 
-        guard listed[entriesFile] != nil else { throw SignPackError.missingFile(entriesFile) }
-        let entries = try SignEntry.decodeAll(Data(contentsOf: folder.appending(path: entriesFile)))
+        guard listed[entriesFileName] != nil else { throw SignPackError.missingFile(entriesFileName) }
+        let entries = try SignEntry.decodeAll(Data(contentsOf: folder.appending(path: entriesFileName)))
         let referenced = [manifest.licence.file] + entries.flatMap { [$0.media.file, $0.media.poster].compactMap { $0 } }
         if let unlisted = referenced.first(where: { listed[$0] == nil }) {
             throw SignPackError.missingFile(unlisted)
@@ -66,7 +66,7 @@ public enum SignPackReader {
     }
 
     /// Relative, inside the pack, no empty or dot segments.
-    static func isSafe(_ path: String) -> Bool {
+    public static func isSafe(_ path: String) -> Bool {
         guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\") else { return false }
         return path.split(separator: "/", omittingEmptySubsequences: false)
             .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
@@ -77,7 +77,7 @@ public enum SignPackReader {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey]
         let root = folder.standardizedFileURL.resolvingSymlinksInPath().path(percentEncoded: false)
         guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys) else {
-            throw SignPackError.missingFile(manifestFile)
+            throw SignPackError.missingFile(manifestFileName)
         }
         var paths: Set<String> = []
         for case let url as URL in walker {
@@ -89,7 +89,7 @@ public enum SignPackReader {
             let relative = String(full.dropFirst(root.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             if values.isSymbolicLink == true { throw SignPackError.unsafePath(relative) }
             guard values.isRegularFile == true, !ignoredNames.contains(url.lastPathComponent),
-                  relative != manifestFile else { continue }
+                  relative != manifestFileName else { continue }
             paths.insert(relative)
         }
         return paths
