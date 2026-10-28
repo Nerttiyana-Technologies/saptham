@@ -35,6 +35,7 @@ let package = Package(
         .testTarget(name: "SapthamCoreTests", dependencies: ["SapthamCore"],
                     swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "SapthamSignsTests", dependencies: ["SapthamSigns"],
+                    resources: [.copy("Fixtures")],
                     swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "SignPackBuilderTests", dependencies: ["SignPackBuilder", "SapthamSigns"],
                     swiftSettings: [.swiftLanguageMode(.v5)]),

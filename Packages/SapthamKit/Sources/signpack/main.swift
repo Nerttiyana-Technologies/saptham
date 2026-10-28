@@ -2,6 +2,7 @@
 //
 //   swift run signpack build <content folder> <new pack folder>
 //   swift run signpack validate <pack folder>
+//   swift run signpack testpattern <new content folder>   (generated clips, no person)
 //
 // Hidden coupling 1: every form a pack lists is normalised with
 // SapthamSigns' SignWordNormaliser here, at build time, and again by the app
@@ -27,6 +28,7 @@ func describe(_ pack: SignPack) -> String {
 let usage = """
 usage: signpack build <content folder> <new pack folder>
        signpack validate <pack folder>
+       signpack testpattern <new content folder>
 """
 
 let args = CommandLine.arguments.dropFirst().map { $0 }
@@ -47,6 +49,13 @@ case "validate" where args.count == 2:
         print("ok \(describe(try SignPackReader.open(URL(filePath: args[1]))))")
     } catch {
         fail("invalid pack: \(error)")
+    }
+case "testpattern" where args.count == 2:
+    do {
+        try await TestPatternContent.write(to: URL(filePath: args[1]))
+        print("wrote test-pattern content to \(args[1])")
+    } catch {
+        fail("\(error)")
     }
 default:
     fail(usage, code: 2)

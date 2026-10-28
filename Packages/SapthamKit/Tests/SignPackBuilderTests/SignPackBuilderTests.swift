@@ -189,3 +189,15 @@ struct ContentSheetTests {
         }
     }
 }
+
+struct TestPatternContentTests {
+    @Test func generatesRealClipsThatBuildIntoAPack() async throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "testpattern-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try await TestPatternContent.write(to: root.appending(path: "content"))
+        // No durationMs column: the builder measures the generated HEVC clips.
+        let pack = try await SignPackBuilder.build(content: root.appending(path: "content"), output: root.appending(path: "pack"))
+        #expect(pack.entries.count == 4)
+        #expect(pack.entries.allSatisfy { abs($0.media.durationMs - 1200) <= 70 })
+    }
+}
