@@ -71,7 +71,7 @@ enum PhoneCaptionEngine {
         return PhoneAppServices(captions: captions, transcripts: transcripts, corrections: corrections,
                                 voiceNotes: voiceNotes, alerts: alerts, assistant: ConversationAssistant(),
                                 battery: BatteryMeter(), direction: SoundDirection(microphone: microphone),
-                                signs: SignDictionary(dataFolder: dataFolder))
+                                signs: SignDictionary(dataFolder: dataFolder, downloader: AppleHostedSignPackDownloader()))
     }
 
     /// Applies the "keep transcripts for" setting.

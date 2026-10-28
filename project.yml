@@ -72,6 +72,7 @@ targets:
           # its data type (CaptionActivityAttributes) is in both.
           - "LiveActivity/CaptionLiveActivityWidget.swift"
           - "LiveActivity/Info.plist"
+          - "SignDownloader"
       - path: Apps/Shared
       # One notices file for both apps: Tools/Notices writes it under
       # Apps/Mac/Support and it ships in each app from there.
@@ -90,11 +91,15 @@ targets:
         product: SapthamSigns
       - target: SapthamLiveActivity
         embed: true
+      - target: SapthamSignDownloader
+        embed: true
     settings:
       base:
         PRODUCT_NAME: Saptham
         PRODUCT_BUNDLE_IDENTIFIER: com.nerttiyana.saptham
         INFOPLIST_FILE: Apps/iOS/Support/Info.plist
+        # App group for sign-pack downloads (ADR 0003 P10-S10).
+        CODE_SIGN_ENTITLEMENTS: Apps/iOS/Support/Saptham.entitlements
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
@@ -116,6 +121,27 @@ targets:
         PRODUCT_NAME: SapthamLiveActivity
         PRODUCT_BUNDLE_IDENTIFIER: com.nerttiyana.saptham.liveactivity
         INFOPLIST_FILE: Apps/iOS/LiveActivity/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.0"
+        SKIP_INSTALL: YES
+  # Schedules Apple-hosted sign-pack downloads (ADR 0003 P10-S10). The Mac
+  # app has none: it ships with Developer ID, and Apple-hosted packs reach
+  # only App Store and TestFlight builds.
+  SapthamSignDownloader:
+    type: extensionkit-extension
+    platform: iOS
+    sources:
+      - path: Apps/iOS/SignDownloader
+        excludes:
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_NAME: SapthamSignDownloader
+        PRODUCT_BUNDLE_IDENTIFIER: com.nerttiyana.saptham.signdownloader
+        INFOPLIST_FILE: Apps/iOS/SignDownloader/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Apps/iOS/SignDownloader/SignDownloader.entitlements
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic

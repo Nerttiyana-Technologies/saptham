@@ -3,10 +3,14 @@ import Observation
 import SapthamSigns
 
 /// Fetches a catalogue pack and returns the folder it landed in, for
-/// `SignPackStore` to verify and install. Background Assets fills this in
-/// (ADR 0003 P10-S10); until then the apps pass none and Download is hidden.
+/// `SignPackStore` to verify and install. The iPhone app passes
+/// `AppleHostedSignPackDownloader` (ADR 0003 P10-S10); an app that passes
+/// none hides Download.
 protocol SignPackDownloading: Sendable {
     func download(_ pack: SignPackCatalogue.Pack) async throws -> URL
+    /// Called once the store has its own copy, or the install failed, so the
+    /// downloaded files don't take the space twice.
+    func discardDownload(of pack: SignPackCatalogue.Pack) async
 }
 
 /// The apps' one door to sign-language packs (ADR 0003): whether signs are
@@ -103,7 +107,12 @@ final class SignDictionary {
         problem = nil
         defer { downloadingKey = nil }
         do {
-            _ = try await store.install(from: try await downloader.download(pack))
+            let folder = try await downloader.download(pack)
+            do { _ = try await store.install(from: folder) } catch {
+                await downloader.discardDownload(of: pack)
+                throw error
+            }
+            await downloader.discardDownload(of: pack)
             announceChange()
         } catch let error as SignPackError {
             problem = error.userMessage

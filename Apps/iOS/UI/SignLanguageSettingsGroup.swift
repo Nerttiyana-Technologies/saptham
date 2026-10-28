@@ -90,6 +90,11 @@ struct SignLanguageSettingsGroup: View {
                         ProgressView().tint(Monsoon.accent)
                         Text("Downloading…").font(.subheadline).foregroundStyle(Monsoon.ink2)
                     } else if row.isInstalled {
+                        if row.isUpdateAvailable && signs.canDownload {
+                            Button { confirmingDownload = row } label: { Label("Update pack", systemImage: "arrow.down.circle") }
+                                .disabled(signs.downloadingKey != nil)
+                                .accessibilityLabel("Update \(row.name)")
+                        }
                         Button(role: .destructive) { confirmingDelete = row } label: { Label("Delete pack", systemImage: "trash") }
                             .accessibilityLabel("Delete \(row.name)")
                     } else if signs.canDownload {

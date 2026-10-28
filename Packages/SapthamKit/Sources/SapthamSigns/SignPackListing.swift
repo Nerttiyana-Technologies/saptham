@@ -22,6 +22,9 @@ public enum SignPackListing {
         public let bytes: Int?
         public let isSuggested: Bool
         public let isActive: Bool
+        /// Installed and verified, but the catalogue offers another version
+        /// (a newer app lists a newer pack); downloading it replaces this one.
+        public let isUpdateAvailable: Bool
 
         public var id: String { key }
     }
@@ -56,9 +59,11 @@ public enum SignPackListing {
         var name = entry?.signLanguageName ?? key
         var variety = entry?.variety ?? ""
         var bytes = entry?.downloadBytes
+        var isUpdateAvailable = false
         switch installed?.pack {
         case .success(let pack)?:
             state = .ready(pack)
+            isUpdateAvailable = entry.map { $0.packId != pack.manifest.packId } ?? false
             name = pack.manifest.signLanguageName
             variety = pack.manifest.variety
             bytes = pack.manifest.files.reduce(0) { $0 + $1.bytes }
@@ -69,6 +74,6 @@ public enum SignPackListing {
             state = .notDownloaded
         }
         return Row(key: key, name: name, variety: variety, state: state, bytes: bytes,
-                   isSuggested: key == suggestedKey, isActive: key == activeKey)
+                   isSuggested: key == suggestedKey, isActive: key == activeKey, isUpdateAvailable: isUpdateAvailable)
     }
 }

@@ -26,6 +26,15 @@ struct SignPackListingTests {
         #expect(rows.first?.bytes == pack.manifest.files.reduce(0) { $0 + $1.bytes })
     }
 
+    @Test func anInstalledPackIsOutOfDateWhenTheCatalogueListsAnotherVersion() throws {
+        let installed = [InstalledSignPack(key: "zxx-XX", pack: .success(try testPattern()))]
+        let newer = pack("test-XX-pattern-2", "zxx", "XX", defaultFor: [])
+        let same = pack("test-XX-pattern-1", "zxx", "XX", defaultFor: [])
+        #expect(SignPackListing.rows(catalogue: [newer], installed: installed, activeKey: nil, region: nil)[0].isUpdateAvailable)
+        #expect(!SignPackListing.rows(catalogue: [same], installed: installed, activeKey: nil, region: nil)[0].isUpdateAvailable)
+        #expect(!SignPackListing.rows(catalogue: [], installed: installed, activeKey: nil, region: nil)[0].isUpdateAvailable)
+    }
+
     @Test func aDamagedPackKeepsItsCatalogueName() {
         let installed = [InstalledSignPack(key: "ase-US", pack: .failure(.damaged("media/water.mp4")))]
         let rows = SignPackListing.rows(catalogue: [asl], installed: installed, activeKey: nil, region: "US")
