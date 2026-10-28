@@ -90,6 +90,7 @@ struct DebugSignPackSection: View {
         do {
             let pack = try await store.install(from: url)
             message = "Installed \(pack.manifest.packId): \(pack.entries.count) signs."
+            NotificationCenter.default.post(name: SignDictionary.packsChanged, object: nil)
         } catch let error as SignPackError {
             message = error.userMessage
         } catch {
@@ -99,7 +100,10 @@ struct DebugSignPackSection: View {
     }
 
     private func delete(_ key: String) async {
-        do { try await store.delete(key: key) } catch { message = "Couldn't delete that pack." }
+        do {
+            try await store.delete(key: key)
+            NotificationCenter.default.post(name: SignDictionary.packsChanged, object: nil)
+        } catch { message = "Couldn't delete that pack." }
         pendingDelete = nil
         await reload()
     }

@@ -92,7 +92,7 @@ struct SapthamSettingsView: View {
             }
             #if DEBUG
             Section("Sign packs (Debug)") {
-                DebugSignPackSection(folder: MacCaptionEngine.dataFolder.appending(path: "SignPacks"), showsTitle: false)
+                DebugSignPackSection(folder: MacCaptionEngine.dataFolder.appending(path: SignDictionary.folderName), showsTitle: false)
             }
             #endif
             Section("About") {

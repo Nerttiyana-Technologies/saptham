@@ -48,7 +48,7 @@ struct SettingsPanel: View {
                     directionGroup
                     #if DEBUG
                     LightRule().padding(.vertical, 18)
-                    DebugSignPackSection(folder: PhoneCaptionEngine.dataFolder.appending(path: "SignPacks"))
+                    DebugSignPackSection(folder: PhoneCaptionEngine.dataFolder.appending(path: SignDictionary.folderName))
                         .foregroundStyle(Monsoon.ink).tint(Monsoon.accent)
                     #endif
                     LightRule().padding(.vertical, 18)
