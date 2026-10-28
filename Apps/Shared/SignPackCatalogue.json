@@ -1,0 +1,5 @@
+{
+  "_note": "Sign packs this app offers (ADR 0003 section 2.8). Each packId must equal an asset pack ID uploaded in App Store Connect (hidden coupling, release checklist P10-S21), and each needs Tools/Notices/sign-packs/<packId>.credits.txt or the gate fails. Empty until the first pack is reviewed by a Deaf panel.",
+  "formatVersion": 1,
+  "packs": []
+}

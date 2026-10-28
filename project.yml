@@ -39,6 +39,9 @@ targets:
         product: SapthamCore
       - package: SapthamKit
         product: SapthamMacAudio
+      # Sign-language dictionary packs (ADR 0003); no dependency on the engine.
+      - package: SapthamKit
+        product: SapthamSigns
     settings:
       base:
         PRODUCT_NAME: Saptham
@@ -83,6 +86,8 @@ targets:
     dependencies:
       - package: SapthamKit
         product: SapthamCore
+      - package: SapthamKit
+        product: SapthamSigns
       - target: SapthamLiveActivity
         embed: true
     settings:
