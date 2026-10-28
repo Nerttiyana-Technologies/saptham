@@ -285,3 +285,15 @@ public enum SignPackError: Error, Equatable, Sendable {
     /// region more than once.
     case duplicateCatalogueEntry(String)
 }
+
+public extension SignPackError {
+    /// What the app tells the user (ADR 0003 §2.6). Never names a word.
+    var userMessage: String {
+        switch self {
+        case .newerFormat: "Update Saptham to use this pack."
+        case .normaliserMismatch: "This pack was made for a different version of Saptham. Download it again."
+        case .malformed, .missingFile, .unlistedFile, .damaged, .unsafePath, .duplicateCatalogueEntry:
+            "This pack is damaged; delete and download again."
+        }
+    }
+}

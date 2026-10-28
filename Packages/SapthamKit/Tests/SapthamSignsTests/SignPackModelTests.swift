@@ -122,3 +122,12 @@ struct SignPackModelTests {
         #expect(decoded.reviewStatus != .approved)
     }
 }
+
+struct SignPackErrorMessageTests {
+    @Test func usesTheADRWording() {
+        #expect(SignPackError.damaged("media/x.mp4").userMessage == "This pack is damaged; delete and download again.")
+        #expect(SignPackError.unlistedFile("x").userMessage == "This pack is damaged; delete and download again.")
+        #expect(SignPackError.newerFormat(2).userMessage == "Update Saptham to use this pack.")
+        #expect(!SignPackError.damaged("media/x.mp4").userMessage.contains("media"))
+    }
+}

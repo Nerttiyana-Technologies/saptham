@@ -46,6 +46,11 @@ struct SettingsPanel: View {
                     batteryGroup
                     LightRule().padding(.vertical, 18)
                     directionGroup
+                    #if DEBUG
+                    LightRule().padding(.vertical, 18)
+                    DebugSignPackSection(folder: PhoneCaptionEngine.dataFolder.appending(path: "SignPacks"))
+                        .foregroundStyle(Monsoon.ink).tint(Monsoon.accent)
+                    #endif
                     LightRule().padding(.vertical, 18)
                     aboutGroup
                 }

@@ -90,6 +90,11 @@ struct SapthamSettingsView: View {
                     NSWorkspace.shared.activateFileViewerSelecting([folder])
                 }
             }
+            #if DEBUG
+            Section("Sign packs (Debug)") {
+                DebugSignPackSection(folder: MacCaptionEngine.dataFolder.appending(path: "SignPacks"), showsTitle: false)
+            }
+            #endif
             Section("About") {
                 Button("Third-party notices…", systemImage: "doc.text") { showsNotices = true }
                 Text("Tamil captions use AI4Bhārat's IndicConformer speech model, running on this Mac.")
