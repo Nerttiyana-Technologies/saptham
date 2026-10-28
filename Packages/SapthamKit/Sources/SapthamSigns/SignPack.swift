@@ -187,10 +187,21 @@ public enum ReviewStatus: Codable, Equatable, Sendable {
     }
 }
 
-/// Why a pack can't be used. Never carries a looked-up word.
+/// Why a pack can't be used. Never carries a looked-up word; paths are the
+/// pack's own relative paths.
 public enum SignPackError: Error, Equatable, Sendable {
     /// The file is missing required fields or isn't valid JSON.
     case malformed(file: String)
     /// The pack is newer than this app: "Update Saptham to use this pack".
     case newerFormat(Int)
+    /// Built with a different `SignWordNormaliser`, so its forms may not match.
+    case normaliserMismatch(pack: Int, app: Int)
+    /// Listed or referenced, but not in the folder.
+    case missingFile(String)
+    /// In the folder, but not listed in the manifest.
+    case unlistedFile(String)
+    /// Its size or SHA-256 differs from the manifest.
+    case damaged(String)
+    /// Absolute, escapes the pack folder, listed twice, or a symbolic link.
+    case unsafePath(String)
 }
